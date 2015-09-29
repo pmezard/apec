@@ -30,7 +30,7 @@ func doHTTP(url string, input io.Reader) (io.ReadCloser, error) {
 	}
 	if rsp.StatusCode != http.StatusOK {
 		rsp.Body.Close()
-		return nil, fmt.Errorf("got %d fetching %s", rsp.StatusCode, url)
+		return nil, fmt.Errorf("got %s fetching %s", rsp.Status, url)
 	}
 	return rsp.Body, nil
 }
