@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -134,9 +133,13 @@ func getOffer(id string) ([]byte, error) {
 	return ioutil.ReadAll(output)
 }
 
-func fetchOffers(args []string) error {
-	outDir := args[0]
-	store, err := OpenStore(outDir)
+var (
+	crawlCmd      = app.Command("crawl", "crawl APEC offers")
+	crawlStoreDir = crawlCmd.Arg("store", "data store directory").Required().String()
+)
+
+func crawlOffers() error {
+	store, err := CreateStore(*crawlStoreDir)
 	if err != nil {
 		return err
 	}
@@ -179,12 +182,4 @@ func fetchOffers(args []string) error {
 		}
 	}
 	return nil
-}
-
-func main() {
-	err := fetchOffers(os.Args[1:])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		os.Exit(1)
-	}
 }

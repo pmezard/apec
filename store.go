@@ -38,10 +38,6 @@ func listFiles(dir string) ([]string, error) {
 }
 
 func OpenStore(dir string) (*Store, error) {
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		return nil, err
-	}
 	s := &Store{
 		dir:   dir,
 		known: map[string]bool{},
@@ -54,6 +50,14 @@ func OpenStore(dir string) (*Store, error) {
 		s.known[f] = true
 	}
 	return s, nil
+}
+
+func CreateStore(dir string) (*Store, error) {
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		return nil, err
+	}
+	return OpenStore(dir)
 }
 
 func (s *Store) Has(id string) bool {
@@ -91,4 +95,19 @@ func (s *Store) Write(id string, data []byte) (bool, error) {
 		s.lock.Unlock()
 	}
 	return true, err
+}
+
+func (s *Store) List() []string {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	ids := []string{}
+	for id := range s.known {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func (s *Store) Get(id string) ([]byte, error) {
+	path := filepath.Join(s.dir, id)
+	return ioutil.ReadFile(path)
 }
