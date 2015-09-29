@@ -111,6 +111,8 @@ var (
 	indexCmd      = app.Command("index", "index APEC offers")
 	indexStoreDir = indexCmd.Arg("store", "data store directory").Required().String()
 	indexIndexDir = indexCmd.Arg("index", "index directory").Required().String()
+	indexMaxSize  = indexCmd.Flag("max-count", "maximum number of items to index").
+			Short('n').Default("0").Int()
 )
 
 func indexOffers() error {
@@ -126,8 +128,8 @@ func indexOffers() error {
 	if err != nil {
 		return err
 	}
-	if len(offers) > 20 {
-		offers = offers[:20]
+	if *indexMaxSize > 0 && len(offers) > *indexMaxSize {
+		offers = offers[:*indexMaxSize]
 	}
 	start := time.Now()
 	for i, offer := range offers {
