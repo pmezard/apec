@@ -138,21 +138,43 @@ var (
 	crawlStoreDir = crawlCmd.Arg("store", "data store directory").Required().String()
 )
 
+func enumerateOffers(callback func([]string) error) error {
+	start := 0
+	count := 250
+	baseDelay := 5 * time.Second
+	maxDelay := 5 * time.Minute
+	delay := baseDelay
+	for ; ; time.Sleep(delay) {
+		time.Sleep(delay)
+		fmt.Printf("fetching from %d to %d\n", start, start+count)
+		ids, err := searchOffers(start, count)
+		if err != nil {
+			fmt.Printf("fetching failed with: %s\n", err)
+			delay *= 2
+			if delay > maxDelay {
+				return err
+			}
+			continue
+		}
+		delay = baseDelay
+		start += count
+		err = callback(ids)
+		if err != nil {
+			return err
+		}
+		if len(ids) < count {
+			break
+		}
+	}
+	return nil
+}
+
 func crawlOffers() error {
 	store, err := CreateStore(*crawlStoreDir)
 	if err != nil {
 		return err
 	}
-	start := 0
-	count := 250
-	for {
-		fmt.Printf("fetching from %d to %d\n", start, start+count)
-		ids, err := searchOffers(start, count)
-		if err != nil {
-			return err
-		}
-		start += count
-		fetched := 0
+	return enumerateOffers(func(ids []string) error {
 		for _, id := range ids {
 			if store.Has(id) {
 				fmt.Printf("skipping %s\n", id)
@@ -160,7 +182,6 @@ func crawlOffers() error {
 			}
 			fmt.Printf("fetching %s\n", id)
 			data, err := getOffer(id)
-			fetched += 1
 			if err != nil {
 				return err
 			}
@@ -174,12 +195,6 @@ func crawlOffers() error {
 				continue
 			}
 		}
-		if len(ids) < count {
-			break
-		}
-		if fetched == 0 {
-			time.Sleep(time.Second)
-		}
-	}
-	return nil
+		return nil
+	})
 }
