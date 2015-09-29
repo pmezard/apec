@@ -83,7 +83,7 @@ func searchOffers(start, count, minSalary int) ([]string, error) {
 	filter := &SearchFilters{
 		EnableFilter: true,
 		Functions:    []int{},
-		Places:       []int{ /*705*/ },
+		Places:       []int{705},
 		Experience:   []int{},
 		Paging: SearchPaging{
 			Range:      count,
