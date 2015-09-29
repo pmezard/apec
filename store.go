@@ -107,7 +107,29 @@ func (s *Store) List() []string {
 	return ids
 }
 
+func (s *Store) Size() int {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return len(s.known)
+}
+
 func (s *Store) Get(id string) ([]byte, error) {
 	path := filepath.Join(s.dir, id)
 	return ioutil.ReadFile(path)
+}
+
+func (s *Store) Delete(id string) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if !s.known[id] {
+		return nil
+	}
+	err := os.Remove(filepath.Join(s.dir, id))
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	delete(s.known, id)
+	return nil
 }

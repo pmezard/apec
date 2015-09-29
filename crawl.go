@@ -174,8 +174,11 @@ func crawlOffers() error {
 	if err != nil {
 		return err
 	}
-	return enumerateOffers(func(ids []string) error {
+	added, deleted := 0, 0
+	seen := map[string]bool{}
+	err = enumerateOffers(func(ids []string) error {
 		for _, id := range ids {
+			seen[id] = true
 			if store.Has(id) {
 				fmt.Printf("skipping %s\n", id)
 				continue
@@ -194,7 +197,20 @@ func crawlOffers() error {
 				fmt.Printf("racing %s\n", id)
 				continue
 			}
+			added += 1
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	for _, id := range store.List() {
+		if !seen[id] {
+			fmt.Printf("deleting %s\n", id)
+			store.Delete(id)
+			deleted += 1
+		}
+	}
+	fmt.Printf("%d added, %d deleted, %d total\n", added, deleted, store.Size())
+	return nil
 }
