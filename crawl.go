@@ -180,7 +180,6 @@ func crawlOffers() error {
 		for _, id := range ids {
 			seen[id] = true
 			if store.Has(id) {
-				fmt.Printf("skipping %s\n", id)
 				continue
 			}
 			fmt.Printf("fetching %s\n", id)
