@@ -35,7 +35,28 @@ func doHTTP(url string, input io.Reader) (io.ReadCloser, error) {
 	return rsp.Body, nil
 }
 
-func doJson(url string, input interface{}, output interface{}) error {
+func tryHTTP(url string, baseDelay time.Duration, loops int,
+	input io.Reader) (io.ReadCloser, error) {
+
+	delay := baseDelay
+	for {
+		output, err := doHTTP(url, input)
+		if err == nil {
+			return output, nil
+		}
+		fmt.Printf("fetching failed with: %s\n", err)
+		loops -= 1
+		if loops <= 0 {
+			return nil, err
+		}
+		time.Sleep(delay)
+		delay *= 2
+	}
+}
+
+func doJson(url string, baseDelay time.Duration, loops int, input interface{},
+	output interface{}) error {
+
 	var post io.Reader
 	if input != nil {
 		body := &bytes.Buffer{}
@@ -45,7 +66,7 @@ func doJson(url string, input interface{}, output interface{}) error {
 		}
 		post = body
 	}
-	result, err := doHTTP(url, post)
+	result, err := tryHTTP(url, baseDelay, loops, post)
 	if err != nil {
 		return err
 	}
@@ -108,7 +129,7 @@ func searchOffers(start, count, minSalary int, locations []int) ([]string, error
 		} `json:"resultats"`
 	}{}
 	url := "https://cadres.apec.fr/cms/webservices/rechercheOffre/ids"
-	err := doJson(url, filter, results)
+	err := doJson(url, 5*time.Second, 5, filter, results)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +146,7 @@ func searchOffers(start, count, minSalary int, locations []int) ([]string, error
 
 func getOffer(id string) ([]byte, error) {
 	u := "https://cadres.apec.fr/cms/webservices/offre/public?numeroOffre=" + id
-	output, err := doHTTP(u, nil)
+	output, err := tryHTTP(u, time.Second, 5, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -136,21 +157,13 @@ func getOffer(id string) ([]byte, error) {
 func enumerateOffers(minSalary int, locations []int, callback func([]string) error) error {
 	start := 0
 	count := 250
-	baseDelay := 5 * time.Second
-	maxDelay := 5 * time.Minute
-	delay := baseDelay
+	delay := 5 * time.Second
 	for ; ; time.Sleep(delay) {
 		fmt.Printf("fetching from %d to %d\n", start, start+count)
 		ids, err := searchOffers(start, count, minSalary, locations)
 		if err != nil {
-			fmt.Printf("fetching failed with: %s\n", err)
-			delay *= 2
-			if delay > maxDelay {
-				return err
-			}
-			continue
+			return err
 		}
-		delay = baseDelay
 		start += count
 		err = callback(ids)
 		if err != nil {
