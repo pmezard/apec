@@ -79,11 +79,11 @@ type SearchFilters struct {
 	ConventionTypes []int         `json:"typesConvention"`
 }
 
-func searchOffers(start, count, minSalary int) ([]string, error) {
+func searchOffers(start, count, minSalary int, locations []int) ([]string, error) {
 	filter := &SearchFilters{
 		EnableFilter: true,
 		Functions:    []int{},
-		Places:       []int{705},
+		Places:       locations,
 		Experience:   []int{},
 		Paging: SearchPaging{
 			Range:      count,
@@ -133,7 +133,7 @@ func getOffer(id string) ([]byte, error) {
 	return ioutil.ReadAll(output)
 }
 
-func enumerateOffers(minSalary int, callback func([]string) error) error {
+func enumerateOffers(minSalary int, locations []int, callback func([]string) error) error {
 	start := 0
 	count := 250
 	baseDelay := 5 * time.Second
@@ -142,7 +142,7 @@ func enumerateOffers(minSalary int, callback func([]string) error) error {
 	for ; ; time.Sleep(delay) {
 		time.Sleep(delay)
 		fmt.Printf("fetching from %d to %d\n", start, start+count)
-		ids, err := searchOffers(start, count, minSalary)
+		ids, err := searchOffers(start, count, minSalary, locations)
 		if err != nil {
 			fmt.Printf("fetching failed with: %s\n", err)
 			delay *= 2
@@ -168,6 +168,7 @@ var (
 	crawlCmd       = app.Command("crawl", "crawl APEC offers")
 	crawlStoreDir  = crawlCmd.Arg("store", "data store directory").Required().String()
 	crawlMinSalary = crawlCmd.Arg("min-salary", "minimum salary in kEUR").Default("50").Int()
+	crawlLocations = crawlCmd.Flag("location", "offer location code").Ints()
 )
 
 func crawlOffers() error {
@@ -177,7 +178,7 @@ func crawlOffers() error {
 	}
 	added, deleted := 0, 0
 	seen := map[string]bool{}
-	err = enumerateOffers(*crawlMinSalary, func(ids []string) error {
+	err = enumerateOffers(*crawlMinSalary, *crawlLocations, func(ids []string) error {
 		for _, id := range ids {
 			seen[id] = true
 			if store.Has(id) {
