@@ -15,6 +15,7 @@ type jsonOffer struct {
 	PartialTime bool   `json:"tempsPartiel"`
 	Location    string `json:"lieuTexte"`
 	HTML        string `json:"texteHtml"`
+	Account     string `json:"nomCompteEtablissement"`
 }
 
 func (offer *jsonOffer) Type() string {
@@ -31,7 +32,9 @@ func printOffer(store *Store, id string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s %s\n", offer.Id, offer.Title)
+	fmt.Printf("%s %s %s %s\n", offer.Id, offer.Title, offer.Salary, offer.Account)
+	fmt.Printf("    https://cadres.apec.fr/offres-emploi-cadres/offre.html?numIdOffre=%s\n",
+		offer.Id)
 	return nil
 }
 
