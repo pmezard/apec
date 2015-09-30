@@ -140,7 +140,6 @@ func enumerateOffers(minSalary int, locations []int, callback func([]string) err
 	maxDelay := 5 * time.Minute
 	delay := baseDelay
 	for ; ; time.Sleep(delay) {
-		time.Sleep(delay)
 		fmt.Printf("fetching from %d to %d\n", start, start+count)
 		ids, err := searchOffers(start, count, minSalary, locations)
 		if err != nil {
