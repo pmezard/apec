@@ -12,11 +12,12 @@ import (
 )
 
 type offerData struct {
-	Account string
-	Title   string
-	Date    string
-	Salary  string
-	URL     string
+	Account  string
+	Title    string
+	Date     string
+	Salary   string
+	URL      string
+	Location string
 }
 
 type sortedOfferDate []*offerData
@@ -78,11 +79,12 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 				}
 			}
 			offers = append(offers, &offerData{
-				Account: offer.Account,
-				Title:   offer.Title,
-				Date:    offer.Date.Format("2006-01-02"),
-				URL:     offer.URL,
-				Salary:  salary,
+				Account:  offer.Account,
+				Title:    offer.Title,
+				Date:     offer.Date.Format("2006-01-02"),
+				URL:      offer.URL,
+				Salary:   salary,
+				Location: offer.Location,
 			})
 		}
 		if len(res.Hits) < rq.Size {

@@ -10,7 +10,7 @@
 	<div>{{.Count}} offers</div><br/>
 	{{range .Offers}}
 	<div>
-		<div>{{.Date}} {{.Account}} <a href="{{.URL}}">{{.Title}}</a> {{.Salary}}</div>
+		<div>{{.Date}} {{.Account}} ({{.Location}}) <a href="{{.URL}}">{{.Title}}</a> {{.Salary}}</div>
 	</div>
 	{{end}}
 </div>
