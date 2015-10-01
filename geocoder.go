@@ -155,49 +155,63 @@ type Location struct {
 	Results []LocResult `json:"results"`
 }
 
-func (g *Geocoder) Geocode(q, countryCode string) (*Location, error) {
-	countryCode = strings.ToLower(countryCode)
-	if countryCode == "" {
-		countryCode = "unk"
+func makeKeyAndCountryCode(q, code string) (string, string) {
+	code = strings.ToLower(code)
+	if code == "" {
+		code = "unk"
 	}
-	key := q + "-" + countryCode
+	return q + "-" + code, code
+}
+
+func (g *Geocoder) GeocodeFromCache(q, countryCode string) (*Location, error) {
+	key, countryCode := makeKeyAndCountryCode(q, countryCode)
 	data, err := g.cache.Get(key)
 	if err != nil {
 		return nil, err
 	}
-	res := &Location{}
 	if len(data) == 0 {
-		r, err := g.rawGeocode(q, countryCode)
-		if err != nil {
-			return nil, err
-		}
-		defer r.Close()
-		data, err = ioutil.ReadAll(&io.LimitedReader{
-			R: r,
-			N: 4 * 1024 * 1024,
-		})
-		if err != nil {
-			return nil, err
-		}
-		err = json.Unmarshal(data, res)
-		if err != nil {
-			return nil, err
-		}
-		err = g.cache.Put(key, data)
-		if err != nil {
-			return nil, err
-		}
-		return res, nil
+		return nil, nil
 	}
+	res := &Location{}
 	err = json.Unmarshal(data, res)
 	res.Cached = true
+	return res, err
+}
+
+func (g *Geocoder) Geocode(q, countryCode string, offline bool) (*Location, error) {
+	res, err := g.GeocodeFromCache(q, countryCode)
+	if err != nil || res != nil || offline {
+		return res, err
+	}
+	r, err := g.rawGeocode(q, countryCode)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	data, err := ioutil.ReadAll(&io.LimitedReader{
+		R: r,
+		N: 4 * 1024 * 1024,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(data, res)
+	if err != nil {
+		return nil, err
+	}
+	key, _ := makeKeyAndCountryCode(q, countryCode)
+	err = g.cache.Put(key, data)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(data, res)
 	return res, err
 }
 
 func (g *Geocoder) rawGeocode(q, countryCode string) (io.ReadCloser, error) {
 	u := fmt.Sprintf("http://api.opencagedata.com/geocode/v1/json?q=%s&key=%s",
 		url.QueryEscape(q), url.QueryEscape(g.key))
-	if countryCode != "unk" {
+	if countryCode != "" {
 		u += "&countrycode=" + url.QueryEscape(countryCode)
 	}
 	rsp, err := http.Get(u)
@@ -228,7 +242,7 @@ func geocode() error {
 		return err
 	}
 	defer geocoder.Close()
-	loc, err := geocoder.Geocode(*geocodeQuery, "fr")
+	loc, err := geocoder.Geocode(*geocodeQuery, "fr", false)
 	if err != nil {
 		return err
 	}

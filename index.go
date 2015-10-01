@@ -241,13 +241,15 @@ func fixLocation(s string) string {
 	return s
 }
 
-func geocodeOffer(geocoder *Geocoder, offer *Offer) (string, *Location, error) {
+func geocodeOffer(geocoder *Geocoder, offer *Offer, offline bool) (
+	string, *Location, error) {
+
 	q := fixLocation(offer.Location)
-	loc, err := geocoder.Geocode(q, "fr")
+	loc, err := geocoder.Geocode(q, "fr", offline)
 	if err != nil {
 		return q, nil, err
 	}
-	if len(loc.Results) == 0 {
+	if loc == nil || len(loc.Results) == 0 {
 		return q, loc, nil
 	}
 	res := loc.Results[0].Component
@@ -301,6 +303,7 @@ func indexOffers() error {
 		offers = offers[:*indexMaxSize]
 	}
 	start := time.Now()
+	rejected := 0
 	for i, offer := range offers {
 		if (i+1)%500 == 0 {
 			now := time.Now()
@@ -308,13 +311,15 @@ func indexOffers() error {
 			fmt.Printf("%d indexed, %.1f/s\n", i+1, float64(i+1)/elapsed)
 		}
 		if geocoder != nil {
-			q, loc, err := geocodeOffer(geocoder, offer)
+			q, loc, err := geocodeOffer(geocoder, offer, rejected > 0)
 			if err != nil {
 				fmt.Printf("error: geocoding %s: %s\n", q, err)
-				if err == QuotaError {
-					geocoder = nil
-					break
+				if err != QuotaError {
+					return err
 				}
+				rejected += 1
+			} else if loc == nil {
+				rejected += 1
 			} else if !loc.Cached {
 				result := "no result"
 				if len(loc.Results) > 0 {
@@ -324,6 +329,8 @@ func indexOffers() error {
 					loc.Rate.Remaining, loc.Rate.Limit)
 				time.Sleep(1 * time.Second)
 			}
+		} else {
+			rejected += 1
 		}
 
 		err = index.Index(offer.Id, offer)
@@ -338,5 +345,6 @@ func indexOffers() error {
 	end := time.Now()
 	fmt.Printf("%d documents indexed in %.2fs\n", len(offers),
 		float64(end.Sub(start))/float64(time.Second))
+	fmt.Printf("%d rejected geocoding\n", rejected)
 	return nil
 }
