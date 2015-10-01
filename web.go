@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/blevesearch/bleve"
 	"html/template"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"sort"
+
+	"github.com/blevesearch/bleve"
 )
 
 type offerData struct {
@@ -117,18 +117,18 @@ func handleQuery(templ *template.Template, store *Store, index bleve.Index,
 }
 
 var (
-	webCmd      = app.Command("web", "APEC web frontend")
-	webStoreDir = webCmd.Arg("store", "data store directory").Required().String()
-	webIndexDir = webCmd.Arg("index", "index directory").Required().String()
-	webHttp     = webCmd.Flag("http", "http server address").Default(":6000").String()
+	webCmd     = app.Command("web", "APEC web frontend")
+	webHttp    = webCmd.Flag("http", "http server address").Default(":6000").String()
+	webDataDir = webCmd.Flag("data", "data directory").Default("offers").String()
 )
 
 func web() error {
-	store, err := OpenStore(*webStoreDir)
+	dirs := NewDataDirs(*webDataDir)
+	store, err := OpenStore(dirs.Store())
 	if err != nil {
 		return fmt.Errorf("cannot open data store: %s", err)
 	}
-	index, err := bleve.Open(filepath.Join(*webIndexDir, "index"))
+	index, err := bleve.Open(dirs.Index())
 	if err != nil {
 		return fmt.Errorf("cannot open index: %s", err)
 	}

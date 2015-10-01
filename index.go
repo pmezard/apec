@@ -216,16 +216,6 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	return index, nil
 }
 
-var (
-	indexCmd      = app.Command("index", "index APEC offers")
-	indexStoreDir = indexCmd.Arg("store", "data store directory").Required().String()
-	indexIndexDir = indexCmd.Arg("index", "index directory").Required().String()
-	indexMaxSize  = indexCmd.Flag("max-count", "maximum number of items to index").
-			Short('n').Default("0").Int()
-	indexGeocoderKey = indexCmd.Flag("geocoding-key", "geocoder API key").String()
-	indexGeocoderDir = indexCmd.Flag("geocoding-dir", "geocoder cache directory").String()
-)
-
 func fixLocation(s string) string {
 	if !utf8.ValidString(s) {
 		fmt.Printf("invalid: %s\n", s)
@@ -264,13 +254,19 @@ func geocodeOffer(geocoder *Geocoder, offer *Offer) (string, *Location, error) {
 	return q, loc, nil
 }
 
+var (
+	indexCmd     = app.Command("index", "index APEC offers")
+	indexDataDir = indexCmd.Flag("data", "data directory").Default("offers").String()
+	indexMaxSize = indexCmd.Flag("max-count", "maximum number of items to index").
+			Short('n').Default("0").Int()
+	indexGeocoderKey = indexCmd.Flag("geocoding-key", "geocoder API key").String()
+)
+
 func indexOffers() error {
-	if (*indexGeocoderKey == "") != (*indexGeocoderDir == "") {
-		return fmt.Errorf("geocoder key and directory must be set together")
-	}
+	dirs := NewDataDirs(*indexDataDir)
 	var geocoder *Geocoder
 	if *indexGeocoderKey != "" {
-		g, err := NewGeocoder(*indexGeocoderKey, *indexGeocoderDir)
+		g, err := NewGeocoder(*indexGeocoderKey, dirs.Geocoder())
 		if err != nil {
 			return err
 		}
@@ -281,11 +277,11 @@ func indexOffers() error {
 			}
 		}()
 	}
-	store, err := OpenStore(*indexStoreDir)
+	store, err := OpenStore(dirs.Store())
 	if err != nil {
 		return err
 	}
-	index, err := NewOfferIndex(*indexIndexDir)
+	index, err := NewOfferIndex(dirs.Index())
 	if err != nil {
 		return err
 	}

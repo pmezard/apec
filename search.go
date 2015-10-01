@@ -3,10 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/blevesearch/bleve"
-	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/blevesearch/bleve"
 )
 
 type jsonOffer struct {
@@ -71,18 +71,18 @@ func printOffers(store *Store, ids []string) error {
 }
 
 var (
-	searchCmd      = app.Command("search", "search APEC index")
-	searchStoreDir = searchCmd.Arg("store", "data store directory").Required().String()
-	searchIndexDir = searchCmd.Arg("index", "index directory").Required().String()
-	searchQuery    = searchCmd.Arg("query", "search query").Required().String()
+	searchCmd     = app.Command("search", "search APEC index")
+	searchQuery   = searchCmd.Arg("query", "search query").Required().String()
+	searchDataDir = searchCmd.Flag("data", "data directory").Default("offers").String()
 )
 
 func search() error {
-	store, err := OpenStore(*searchStoreDir)
+	dirs := NewDataDirs(*searchDataDir)
+	store, err := OpenStore(dirs.Store())
 	if err != nil {
 		return err
 	}
-	index, err := bleve.Open(filepath.Join(*searchIndexDir, "index"))
+	index, err := bleve.Open(dirs.Index())
 	if err != nil {
 		return err
 	}

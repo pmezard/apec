@@ -7,9 +7,32 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 )
+
+type DataDirs struct {
+	RootDir string
+}
+
+func NewDataDirs(rootDir string) *DataDirs {
+	return &DataDirs{
+		RootDir: rootDir,
+	}
+}
+
+func (d *DataDirs) Store() string {
+	return filepath.Join(d.RootDir, "offers")
+}
+
+func (d *DataDirs) Index() string {
+	return filepath.Join(d.RootDir, "index")
+}
+
+func (d *DataDirs) Geocoder() string {
+	return filepath.Join(d.RootDir, "geocoder")
+}
 
 func doHTTP(url string, input io.Reader) (io.ReadCloser, error) {
 	method := "GET"
@@ -178,13 +201,14 @@ func enumerateOffers(minSalary int, locations []int, callback func([]string) err
 
 var (
 	crawlCmd       = app.Command("crawl", "crawl APEC offers")
-	crawlStoreDir  = crawlCmd.Arg("store", "data store directory").Required().String()
+	crawlDataDir   = crawlCmd.Flag("data", "data directory").Default("offers").String()
 	crawlMinSalary = crawlCmd.Arg("min-salary", "minimum salary in kEUR").Default("50").Int()
 	crawlLocations = crawlCmd.Flag("location", "offer location code").Ints()
 )
 
 func crawlOffers() error {
-	store, err := CreateStore(*crawlStoreDir)
+	dirs := NewDataDirs(*crawlDataDir)
+	store, err := CreateStore(dirs.Store())
 	if err != nil {
 		return err
 	}
