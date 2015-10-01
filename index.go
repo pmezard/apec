@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -213,7 +212,7 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	m.AddDocumentMapping("offer", offer)
 	m.DefaultMapping = offer
 
-	index, err := bleve.New(filepath.Join(dir, "index"), m)
+	index, err := bleve.New(dir, m)
 	if err != nil {
 		return nil, err
 	}
