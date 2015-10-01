@@ -185,10 +185,6 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	err = os.MkdirAll(dir, 0755)
-	if err != nil {
-		return nil, err
-	}
 
 	textAll := bleve.NewTextFieldMapping()
 	textAll.Store = false
