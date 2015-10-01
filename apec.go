@@ -18,6 +18,8 @@ func dispatch() error {
 		return indexOffers()
 	case searchCmd.FullCommand():
 		return search()
+	case webCmd.FullCommand():
+		return web()
 	}
 	return nil
 }

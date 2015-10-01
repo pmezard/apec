@@ -1,0 +1,18 @@
+<html>
+<header>
+	<meta charset="utf-8">
+</header>
+<body>
+<div>
+	<form action="" method="get">
+		Query: <input type="text" name="q"> <input type="submit" value="Submit">
+	</form> 
+	<div>{{.Count}} offers</div><br/>
+	{{range .Offers}}
+	<div>
+		<div>{{.Date}} {{.Account}} <a href="{{.URL}}">{{.Title}}</a> {{.Salary}}</div>
+	</div>
+	{{end}}
+</div>
+</body>
+</html>

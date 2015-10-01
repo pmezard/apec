@@ -75,11 +75,14 @@ func loadOffers(store *Store) ([]*jsonOffer, error) {
 }
 
 type Offer struct {
+	Account   string
 	Id        string `json:"id"`
 	HTML      string `json:"html"`
 	Title     string `json:"title"`
 	MinSalary int    `json:"min_salary"`
 	MaxSalary int    `json:"max_salary"`
+	Date      time.Time
+	URL       string
 }
 
 var (
@@ -128,20 +131,39 @@ func parseSalary(s string) (int, int, error) {
 	return 0, 0, nil
 }
 
+const (
+	ApecURL = "https://cadres.apec.fr/offres-emploi-cadres/offre.html?numIdOffre="
+)
+
+func convertOffer(offer *jsonOffer) (*Offer, error) {
+	r := &Offer{
+		Account: offer.Account,
+		Id:      offer.Id,
+		HTML:    offer.HTML,
+		Title:   offer.Title,
+		URL:     ApecURL + offer.Id,
+	}
+	min, max, err := parseSalary(offer.Salary)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse salary %q: %s", offer.Salary, err)
+	}
+	d, err := time.Parse("2006-01-02T15:04:05.000+0000", offer.Date)
+	if err != nil {
+		return nil, err
+	}
+	r.Date = d
+	r.MinSalary = min
+	r.MaxSalary = max
+	return r, nil
+}
+
 func convertOffers(offers []*jsonOffer) ([]*Offer, error) {
 	result := make([]*Offer, 0, len(offers))
 	for _, o := range offers {
-		r := &Offer{
-			Id:    o.Id,
-			HTML:  o.HTML,
-			Title: o.Title,
-		}
-		min, max, err := parseSalary(o.Salary)
-		if err == nil {
-			r.MinSalary = min
-			r.MaxSalary = max
-		} else {
+		r, err := convertOffer(o)
+		if err != nil {
 			fmt.Printf("error: cannot parse salary %q: %s\n", o.Salary, err)
+			continue
 		}
 		result = append(result, r)
 	}

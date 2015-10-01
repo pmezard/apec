@@ -86,7 +86,6 @@ func search() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(index.Fields())
 	defer index.Close()
 	q := bleve.NewQueryStringQuery(*searchQuery)
 	rq := bleve.NewSearchRequest(q)
