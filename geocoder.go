@@ -230,12 +230,15 @@ func (g *Geocoder) rawGeocode(q, countryCode string) (io.ReadCloser, error) {
 
 var (
 	geocodeCmd   = app.Command("geocode", "geocode location with OpenCage")
-	geocodeKey   = geocodeCmd.Arg("key", "OpenCage API key").Required().String()
 	geocodeQuery = geocodeCmd.Arg("query", "geocoding query").Required().String()
 )
 
 func geocode(cfg *Config) error {
-	geocoder, err := NewGeocoder(*geocodeKey, cfg.Geocoder())
+	key := cfg.GeocodingKey()
+	if key == "" {
+		return fmt.Errorf("geocoding key is not set, please configure APEC_GEOCODING_KEY")
+	}
+	geocoder, err := NewGeocoder(key, cfg.Geocoder())
 	if err != nil {
 		return err
 	}

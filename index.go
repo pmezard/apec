@@ -263,13 +263,13 @@ var (
 	indexCmd     = app.Command("index", "index APEC offers")
 	indexMaxSize = indexCmd.Flag("max-count", "maximum number of items to index").
 			Short('n').Default("0").Int()
-	indexGeocoderKey = indexCmd.Flag("geocoding-key", "geocoder API key").String()
 )
 
 func indexOffers(cfg *Config) error {
 	var geocoder *Geocoder
-	if *indexGeocoderKey != "" {
-		g, err := NewGeocoder(*indexGeocoderKey, cfg.Geocoder())
+	key := cfg.GeocodingKey()
+	if key != "" {
+		g, err := NewGeocoder(key, cfg.Geocoder())
 		if err != nil {
 			return err
 		}

@@ -35,6 +35,10 @@ func (d *Config) Geocoder() string {
 	return filepath.Join(d.RootDir, "geocoder")
 }
 
+func (d *Config) GeocodingKey() string {
+	return os.Getenv("APEC_GEOCODING_KEY")
+}
+
 func dispatch() error {
 	cmd := kingpin.MustParse(app.Parse(os.Args[1:]))
 	cfg := NewConfig(*dataDir)
