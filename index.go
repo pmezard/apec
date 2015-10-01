@@ -3,16 +3,20 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/blevesearch/bleve"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
+	"github.com/blevesearch/bleve"
+
+	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
 )
@@ -35,6 +39,7 @@ type offerResult struct {
 
 func loadOffers(store *Store) ([]*jsonOffer, error) {
 	ids := store.List()
+	sort.Strings(ids)
 	pending := make(chan string, len(ids))
 	for _, id := range ids {
 		pending <- id
@@ -83,6 +88,11 @@ type Offer struct {
 	MaxSalary int    `json:"max_salary"`
 	Date      time.Time
 	URL       string
+	Location  string `json:"location"`
+	City      string `json:"city"`
+	County    string `json:"county"`
+	State     string `json:"state"`
+	Country   string `json:"country"`
 }
 
 var (
@@ -137,11 +147,12 @@ const (
 
 func convertOffer(offer *jsonOffer) (*Offer, error) {
 	r := &Offer{
-		Account: offer.Account,
-		Id:      offer.Id,
-		HTML:    offer.HTML,
-		Title:   offer.Title,
-		URL:     ApecURL + offer.Id,
+		Account:  offer.Account,
+		Id:       offer.Id,
+		HTML:     offer.HTML,
+		Title:    offer.Title,
+		URL:      ApecURL + offer.Id,
+		Location: offer.Location,
 	}
 	min, max, err := parseSalary(offer.Salary)
 	if err != nil {
@@ -176,22 +187,23 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 		return nil, err
 	}
 
-	html := bleve.NewTextFieldMapping()
-	html.Store = false
-	//html.IncludeInAll = false
-	html.IncludeTermVectors = false
+	textAll := bleve.NewTextFieldMapping()
+	textAll.Store = false
+	textAll.IncludeTermVectors = false
 
-	num := bleve.NewNumericFieldMapping()
-	num.Store = false
-	num.IncludeTermVectors = false
-	num.IncludeInAll = false
+	text := bleve.NewTextFieldMapping()
+	text.Store = false
+	text.IncludeInAll = false
+	text.IncludeTermVectors = false
 
 	offer := bleve.NewDocumentStaticMapping()
 	offer.Dynamic = false
-	offer.AddFieldMappingsAt("html", html)
-	offer.AddFieldMappingsAt("title", html)
-	offer.AddFieldMappingsAt("min_salary", num)
-	offer.AddFieldMappingsAt("max_salary", num)
+	offer.AddFieldMappingsAt("html", textAll)
+	offer.AddFieldMappingsAt("title", textAll)
+	offer.AddFieldMappingsAt("city", text)
+	offer.AddFieldMappingsAt("county", text)
+	offer.AddFieldMappingsAt("state", text)
+	offer.AddFieldMappingsAt("country", text)
 
 	m := bleve.NewIndexMapping()
 	m.AddDocumentMapping("offer", offer)
@@ -210,9 +222,65 @@ var (
 	indexIndexDir = indexCmd.Arg("index", "index directory").Required().String()
 	indexMaxSize  = indexCmd.Flag("max-count", "maximum number of items to index").
 			Short('n').Default("0").Int()
+	indexGeocoderKey = indexCmd.Flag("geocoding-key", "geocoder API key").String()
+	indexGeocoderDir = indexCmd.Flag("geocoding-dir", "geocoder cache directory").String()
 )
 
+func fixLocation(s string) string {
+	if !utf8.ValidString(s) {
+		fmt.Printf("invalid: %s\n", s)
+		u, _, err := transform.String(charmap.Windows1252.NewDecoder(), s)
+		if err != nil {
+			fmt.Printf("invalid: %s\n", s)
+			return s
+		}
+		if s != u {
+			fmt.Printf("recoded: %s => %s\n", s, u)
+		}
+		s = u
+	}
+	s = strings.TrimSpace(s)
+	l := strings.ToLower(s)
+	if l == "idf" {
+		return "Ile-de-France"
+	}
+	return s
+}
+
+func geocodeOffer(geocoder *Geocoder, offer *Offer) (string, *Location, error) {
+	q := fixLocation(offer.Location)
+	loc, err := geocoder.Geocode(q, "fr")
+	if err != nil {
+		return q, nil, err
+	}
+	if len(loc.Results) == 0 {
+		return q, loc, nil
+	}
+	res := loc.Results[0].Component
+	offer.City = res.City
+	offer.County = res.County
+	offer.State = res.State
+	offer.Country = res.Country
+	return q, loc, nil
+}
+
 func indexOffers() error {
+	if (*indexGeocoderKey == "") != (*indexGeocoderDir == "") {
+		return fmt.Errorf("geocoder key and directory must be set together")
+	}
+	var geocoder *Geocoder
+	if *indexGeocoderKey != "" {
+		g, err := NewGeocoder(*indexGeocoderKey, *indexGeocoderDir)
+		if err != nil {
+			return err
+		}
+		geocoder = g
+		defer func() {
+			if geocoder != nil {
+				geocoder.Close()
+			}
+		}()
+	}
 	store, err := OpenStore(*indexStoreDir)
 	if err != nil {
 		return err
@@ -239,6 +307,25 @@ func indexOffers() error {
 			elapsed := float64(now.Sub(start)) / float64(time.Second)
 			fmt.Printf("%d indexed, %.1f/s\n", i+1, float64(i+1)/elapsed)
 		}
+		if geocoder != nil {
+			q, loc, err := geocodeOffer(geocoder, offer)
+			if err != nil {
+				fmt.Printf("error: geocoding %s: %s\n", q, err)
+				if err == QuotaError {
+					geocoder = nil
+					break
+				}
+			} else if !loc.Cached {
+				result := "no result"
+				if len(loc.Results) > 0 {
+					result = loc.Results[0].Component.String()
+				}
+				fmt.Printf("geocoding %s => %s (quota: %d/%d)\n", q, result,
+					loc.Rate.Remaining, loc.Rate.Limit)
+				time.Sleep(1 * time.Second)
+			}
+		}
+
 		err = index.Index(offer.Id, offer)
 		if err != nil {
 			return err

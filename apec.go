@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/alecthomas/kingpin"
 	"os"
+
+	"github.com/alecthomas/kingpin"
 )
 
 var (
@@ -20,6 +21,8 @@ func dispatch() error {
 		return search()
 	case webCmd.FullCommand():
 		return web()
+	case geocodeCmd.FullCommand():
+		return geocode()
 	}
 	return nil
 }
