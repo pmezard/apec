@@ -5,7 +5,7 @@
 <body>
 <div>
 	<form action="" method="get">
-		Query: <input type="text" name="q"> <input type="submit" value="Submit">
+		Query: <input type="text" name="q" value="{{.Query}}"> <input type="submit" value="Submit">
 	</form> 
 	<div>{{.Count}} offers</div><br/>
 	{{range .Offers}}

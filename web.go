@@ -96,9 +96,11 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	data := struct {
 		Offers []*offerData
 		Count  int
+		Query  string
 	}{
 		Offers: offers,
 		Count:  len(offers),
+		Query:  query,
 	}
 	h := w.Header()
 	h.Set("Content-Type", "text/html")
