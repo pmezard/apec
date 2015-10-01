@@ -229,15 +229,13 @@ func (g *Geocoder) rawGeocode(q, countryCode string) (io.ReadCloser, error) {
 }
 
 var (
-	geocodeCmd     = app.Command("geocode", "geocode location with OpenCage")
-	geocodeKey     = geocodeCmd.Arg("key", "OpenCage API key").Required().String()
-	geocodeQuery   = geocodeCmd.Arg("query", "geocoding query").Required().String()
-	geocodeDataDir = geocodeCmd.Flag("data", "data directory").Default("offers").String()
+	geocodeCmd   = app.Command("geocode", "geocode location with OpenCage")
+	geocodeKey   = geocodeCmd.Arg("key", "OpenCage API key").Required().String()
+	geocodeQuery = geocodeCmd.Arg("query", "geocoding query").Required().String()
 )
 
-func geocode() error {
-	dirs := NewDataDirs(*geocodeDataDir)
-	geocoder, err := NewGeocoder(*geocodeKey, dirs.Geocoder())
+func geocode(cfg *Config) error {
+	geocoder, err := NewGeocoder(*geocodeKey, cfg.Geocoder())
 	if err != nil {
 		return err
 	}

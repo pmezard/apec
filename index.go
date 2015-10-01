@@ -261,17 +261,15 @@ func geocodeOffer(geocoder *Geocoder, offer *Offer, offline bool) (
 
 var (
 	indexCmd     = app.Command("index", "index APEC offers")
-	indexDataDir = indexCmd.Flag("data", "data directory").Default("offers").String()
 	indexMaxSize = indexCmd.Flag("max-count", "maximum number of items to index").
 			Short('n').Default("0").Int()
 	indexGeocoderKey = indexCmd.Flag("geocoding-key", "geocoder API key").String()
 )
 
-func indexOffers() error {
-	dirs := NewDataDirs(*indexDataDir)
+func indexOffers(cfg *Config) error {
 	var geocoder *Geocoder
 	if *indexGeocoderKey != "" {
-		g, err := NewGeocoder(*indexGeocoderKey, dirs.Geocoder())
+		g, err := NewGeocoder(*indexGeocoderKey, cfg.Geocoder())
 		if err != nil {
 			return err
 		}
@@ -282,11 +280,11 @@ func indexOffers() error {
 			}
 		}()
 	}
-	store, err := OpenStore(dirs.Store())
+	store, err := OpenStore(cfg.Store())
 	if err != nil {
 		return err
 	}
-	index, err := NewOfferIndex(dirs.Index())
+	index, err := NewOfferIndex(cfg.Index())
 	if err != nil {
 		return err
 	}

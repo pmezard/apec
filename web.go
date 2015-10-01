@@ -119,18 +119,16 @@ func handleQuery(templ *template.Template, store *Store, index bleve.Index,
 }
 
 var (
-	webCmd     = app.Command("web", "APEC web frontend")
-	webHttp    = webCmd.Flag("http", "http server address").Default(":6000").String()
-	webDataDir = webCmd.Flag("data", "data directory").Default("offers").String()
+	webCmd  = app.Command("web", "APEC web frontend")
+	webHttp = webCmd.Flag("http", "http server address").Default(":6000").String()
 )
 
-func web() error {
-	dirs := NewDataDirs(*webDataDir)
-	store, err := OpenStore(dirs.Store())
+func web(cfg *Config) error {
+	store, err := OpenStore(cfg.Store())
 	if err != nil {
 		return fmt.Errorf("cannot open data store: %s", err)
 	}
-	index, err := bleve.Open(dirs.Index())
+	index, err := bleve.Open(cfg.Index())
 	if err != nil {
 		return fmt.Errorf("cannot open index: %s", err)
 	}

@@ -7,32 +7,9 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"time"
 )
-
-type DataDirs struct {
-	RootDir string
-}
-
-func NewDataDirs(rootDir string) *DataDirs {
-	return &DataDirs{
-		RootDir: rootDir,
-	}
-}
-
-func (d *DataDirs) Store() string {
-	return filepath.Join(d.RootDir, "offers")
-}
-
-func (d *DataDirs) Index() string {
-	return filepath.Join(d.RootDir, "index")
-}
-
-func (d *DataDirs) Geocoder() string {
-	return filepath.Join(d.RootDir, "geocoder")
-}
 
 func doHTTP(url string, input io.Reader) (io.ReadCloser, error) {
 	method := "GET"
@@ -206,9 +183,8 @@ var (
 	crawlLocations = crawlCmd.Flag("location", "offer location code").Ints()
 )
 
-func crawlOffers() error {
-	dirs := NewDataDirs(*crawlDataDir)
-	store, err := CreateStore(dirs.Store())
+func crawlOffers(cfg *Config) error {
+	store, err := CreateStore(cfg.Store())
 	if err != nil {
 		return err
 	}

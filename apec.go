@@ -3,26 +3,52 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/alecthomas/kingpin"
 )
 
 var (
-	app = kingpin.New("apec", "APEC crawler, indexer and query tool")
+	app     = kingpin.New("apec", "APEC crawler, indexer and query tool")
+	dataDir = app.Flag("data", "data directory").Default("offers").String()
 )
 
+type Config struct {
+	RootDir string
+}
+
+func NewConfig(rootDir string) *Config {
+	return &Config{
+		RootDir: rootDir,
+	}
+}
+
+func (d *Config) Store() string {
+	return filepath.Join(d.RootDir, "offers")
+}
+
+func (d *Config) Index() string {
+	return filepath.Join(d.RootDir, "index")
+}
+
+func (d *Config) Geocoder() string {
+	return filepath.Join(d.RootDir, "geocoder")
+}
+
 func dispatch() error {
-	switch kingpin.MustParse(app.Parse(os.Args[1:])) {
+	cmd := kingpin.MustParse(app.Parse(os.Args[1:]))
+	cfg := NewConfig(*dataDir)
+	switch cmd {
 	case crawlCmd.FullCommand():
-		return crawlOffers()
+		return crawlOffers(cfg)
 	case indexCmd.FullCommand():
-		return indexOffers()
+		return indexOffers(cfg)
 	case searchCmd.FullCommand():
-		return search()
+		return search(cfg)
 	case webCmd.FullCommand():
-		return web()
+		return web(cfg)
 	case geocodeCmd.FullCommand():
-		return geocode()
+		return geocode(cfg)
 	}
 	return nil
 }

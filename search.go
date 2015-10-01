@@ -71,18 +71,16 @@ func printOffers(store *Store, ids []string) error {
 }
 
 var (
-	searchCmd     = app.Command("search", "search APEC index")
-	searchQuery   = searchCmd.Arg("query", "search query").Required().String()
-	searchDataDir = searchCmd.Flag("data", "data directory").Default("offers").String()
+	searchCmd   = app.Command("search", "search APEC index")
+	searchQuery = searchCmd.Arg("query", "search query").Required().String()
 )
 
-func search() error {
-	dirs := NewDataDirs(*searchDataDir)
-	store, err := OpenStore(dirs.Store())
+func search(cfg *Config) error {
+	store, err := OpenStore(cfg.Store())
 	if err != nil {
 		return err
 	}
-	index, err := bleve.Open(dirs.Index())
+	index, err := bleve.Open(cfg.Index())
 	if err != nil {
 		return err
 	}
