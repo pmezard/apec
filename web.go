@@ -46,6 +46,8 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	rq := bleve.NewSearchRequest(q)
 	rq.Size = 100
 	offers := []*offerData{}
+	maxDisplayed := 1000
+	total := 0
 	for {
 		if query == "" {
 			break
@@ -54,7 +56,11 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 		if err != nil {
 			return err
 		}
+		total = int(res.Total)
 		for _, doc := range res.Hits {
+			if len(offers) >= maxDisplayed {
+				break
+			}
 			data, err := store.Get(doc.ID)
 			if err != nil {
 				return err
@@ -87,20 +93,22 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 				Location: offer.Location,
 			})
 		}
-		if len(res.Hits) < rq.Size {
+		if len(res.Hits) < rq.Size || len(offers) >= maxDisplayed {
 			break
 		}
 		rq.From += rq.Size
 	}
 	sort.Sort(sortedOfferDate(offers))
 	data := struct {
-		Offers []*offerData
-		Count  int
-		Query  string
+		Offers    []*offerData
+		Displayed int
+		Total     int
+		Query     string
 	}{
-		Offers: offers,
-		Count:  len(offers),
-		Query:  query,
+		Offers:    offers,
+		Displayed: len(offers),
+		Total:     total,
+		Query:     query,
 	}
 	h := w.Header()
 	h.Set("Content-Type", "text/html")
