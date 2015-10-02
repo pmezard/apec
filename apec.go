@@ -6,11 +6,13 @@ import (
 	"path/filepath"
 
 	"github.com/alecthomas/kingpin"
+	"github.com/davecheney/profile"
 )
 
 var (
 	app     = kingpin.New("apec", "APEC crawler, indexer and query tool")
 	dataDir = app.Flag("data", "data directory").Default("offers").String()
+	prof    = app.Flag("profile", "enable profiling").Bool()
 )
 
 type Config struct {
@@ -41,6 +43,9 @@ func (d *Config) GeocodingKey() string {
 
 func dispatch() error {
 	cmd := kingpin.MustParse(app.Parse(os.Args[1:]))
+	if *prof {
+		defer profile.Start(profile.CPUProfile).Stop()
+	}
 	cfg := NewConfig(*dataDir)
 	switch cmd {
 	case crawlCmd.FullCommand():
