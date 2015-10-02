@@ -195,6 +195,7 @@ func (g *Geocoder) Geocode(q, countryCode string, offline bool) (*Location, erro
 	if err != nil {
 		return nil, err
 	}
+	res = &Location{}
 	err = json.Unmarshal(data, res)
 	if err != nil {
 		return nil, err
