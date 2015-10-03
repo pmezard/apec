@@ -128,7 +128,7 @@ func handleQuery(templ *template.Template, store *Store, index bleve.Index,
 
 var (
 	webCmd  = app.Command("web", "APEC web frontend")
-	webHttp = webCmd.Flag("http", "http server address").Default(":6000").String()
+	webHttp = webCmd.Flag("http", "http server address").Default(":8081").String()
 )
 
 func web(cfg *Config) error {
