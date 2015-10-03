@@ -303,6 +303,8 @@ var (
 	indexCmd     = app.Command("index", "index APEC offers")
 	indexMaxSize = indexCmd.Flag("max-count", "maximum number of items to index").
 			Short('n').Default("0").Int()
+	indexNoIndex = indexCmd.Flag("no-index", "disable indexing").Bool()
+	indexVerbose = indexCmd.Flag("verbose", "verbose mode").Short('v').Bool()
 )
 
 func indexOffers(cfg *Config) error {
@@ -324,9 +326,12 @@ func indexOffers(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	index, err := NewOfferIndex(cfg.Index())
-	if err != nil {
-		return err
+	var index bleve.Index
+	if !*indexNoIndex {
+		index, err = NewOfferIndex(cfg.Index())
+		if err != nil {
+			return err
+		}
 	}
 	rawOffers, err := loadOffers(store)
 	if err != nil {
@@ -341,6 +346,7 @@ func indexOffers(cfg *Config) error {
 	}
 	start := time.Now()
 	rejected := 0
+	indexed := 0
 	for i, offer := range offers {
 		if (i+1)%500 == 0 {
 			now := time.Now()
@@ -357,30 +363,39 @@ func indexOffers(cfg *Config) error {
 				rejected += 1
 			} else if loc == nil {
 				rejected += 1
-			} else if !loc.Cached {
+			} else if !loc.Cached || *indexVerbose {
 				result := "no result"
 				if len(loc.Results) > 0 {
 					result = loc.Results[0].Component.String()
 				}
-				fmt.Printf("geocoding %s => %s (quota: %d/%d)\n", q, result,
-					loc.Rate.Remaining, loc.Rate.Limit)
-				time.Sleep(1 * time.Second)
+				if !loc.Cached {
+					fmt.Printf("geocoding %s => %s (quota: %d/%d)\n", q, result,
+						loc.Rate.Remaining, loc.Rate.Limit)
+					time.Sleep(1 * time.Second)
+				} else {
+					fmt.Printf("geocoding %s => %s\n", q, result)
+				}
 			}
 		} else {
 			rejected += 1
 		}
 
-		err = index.Index(offer.Id, offer)
+		if index != nil {
+			err = index.Index(offer.Id, offer)
+			if err != nil {
+				return err
+			}
+			indexed += 1
+		}
+	}
+	if index != nil {
+		err = index.Close()
 		if err != nil {
 			return err
 		}
 	}
-	err = index.Close()
-	if err != nil {
-		return err
-	}
 	end := time.Now()
-	fmt.Printf("%d documents indexed in %.2fs\n", len(offers),
+	fmt.Printf("%d/%d documents indexed in %.2fs\n", indexed, len(offers),
 		float64(end.Sub(start))/float64(time.Second))
 	fmt.Printf("%d rejected geocoding\n", rejected)
 	return nil
