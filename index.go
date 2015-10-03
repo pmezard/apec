@@ -14,6 +14,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/analysis/analyzers/custom_analyzer"
+	"github.com/blevesearch/bleve/analysis/char_filters/html_char_filter"
+	"github.com/blevesearch/bleve/analysis/language/fr"
+	"github.com/blevesearch/bleve/analysis/token_filters/lower_case_filter"
+	bleveuni "github.com/blevesearch/bleve/analysis/tokenizers/unicode"
+	"github.com/blevesearch/bleve/index/store/boltdb"
+	"github.com/blevesearch/bleve/index/upside_down"
 
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
@@ -186,9 +193,44 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 		return nil, err
 	}
 
-	textAll := bleve.NewTextFieldMapping()
-	textAll.Store = false
-	textAll.IncludeTermVectors = false
+	frTokens := []string{
+		lower_case_filter.Name,
+		fr.ElisionName,
+		fr.StopName,
+		fr.LightStemmerName,
+	}
+	fr := map[string]interface{}{
+		"type":          custom_analyzer.Name,
+		"tokenizer":     bleveuni.Name,
+		"token_filters": frTokens,
+	}
+	frHtml := map[string]interface{}{
+		"type": custom_analyzer.Name,
+		"char_filters": []string{
+			html_char_filter.Name,
+		},
+		"tokenizer":     bleveuni.Name,
+		"token_filters": frTokens,
+	}
+	m := bleve.NewIndexMapping()
+	err = m.AddCustomAnalyzer("fr", fr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register analyzer fr: %s", err)
+	}
+	err = m.AddCustomAnalyzer("fr_html", frHtml)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register analyzer fr_html: %s", err)
+	}
+
+	html := bleve.NewTextFieldMapping()
+	html.Store = false
+	html.IncludeTermVectors = false
+	html.Analyzer = "fr_html"
+
+	textFr := bleve.NewTextFieldMapping()
+	textFr.Store = false
+	textFr.IncludeTermVectors = false
+	textFr.Analyzer = "fr"
 
 	text := bleve.NewTextFieldMapping()
 	text.Store = false
@@ -197,14 +239,13 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 
 	offer := bleve.NewDocumentStaticMapping()
 	offer.Dynamic = false
-	offer.AddFieldMappingsAt("html", textAll)
-	offer.AddFieldMappingsAt("title", textAll)
+	offer.AddFieldMappingsAt("html", textFr)
+	offer.AddFieldMappingsAt("title", textFr)
 	offer.AddFieldMappingsAt("city", text)
 	offer.AddFieldMappingsAt("county", text)
 	offer.AddFieldMappingsAt("state", text)
 	offer.AddFieldMappingsAt("country", text)
 
-	m := bleve.NewIndexMapping()
 	m.AddDocumentMapping("offer", offer)
 	m.DefaultMapping = offer
 
