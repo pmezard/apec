@@ -249,7 +249,10 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	m.AddDocumentMapping("offer", offer)
 	m.DefaultMapping = offer
 
-	index, err := bleve.New(dir, m)
+	index, err := bleve.NewUsing(dir, m, upside_down.Name, boltdb.Name,
+		map[string]interface{}{
+			"nosync": true,
+		})
 	if err != nil {
 		return nil, err
 	}
