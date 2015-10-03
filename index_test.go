@@ -18,8 +18,16 @@ func TestFixLocation(t *testing.T) {
 			Output: []string{"Ile-de-France"},
 		},
 		{
-			Input:  "29-56-75-92 ",
-			Output: []string{"29", "56", "75", "92"},
+			Input:  "29 - 56/75 ou 92, 93 ",
+			Output: []string{"29", "56", "75", "92", "93"},
+		},
+		{
+			Input:  "proche velizy",
+			Output: []string{"velizy"},
+		},
+		{
+			Input:  "départements 22 et 1",
+			Output: []string{"22", "1"},
 		},
 	}
 

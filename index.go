@@ -119,6 +119,11 @@ func normString(s string) string {
 	return result
 }
 
+func nfdString(s string) string {
+	result, _, _ := transform.String(norm.NFD, s)
+	return result
+}
+
 func parseSalary(s string) (int, int, error) {
 	s = strings.ToLower(normString(s))
 	m := reSalaryNum.FindAllStringSubmatch(s, -1)
@@ -261,7 +266,7 @@ func consumeNumSep(s string) (string, int) {
 	consumed := 0
 	for len(s) > 0 {
 		c := s[0]
-		if c == ' ' || c == '-' || c == '/' {
+		if c == ' ' || c == '-' || c == '/' || c == ',' {
 			consumed += 1
 			s = s[1:]
 			continue
@@ -286,11 +291,15 @@ func fixCountryNums(s string, result []string) (string, []string) {
 	input, _ := consumeNumSep(s)
 	var consumed int
 	for {
-		if len(input) < 2 || !isNum(input[0]) && !isNum(input[1]) {
+		if len(input) >= 2 && isNum(input[0]) && isNum(input[1]) {
+			found = append(found, input[:2])
+			input = input[2:]
+		} else if len(input) >= 1 && isNum(input[0]) {
+			found = append(found, input[:1])
+			input = input[1:]
+		} else {
 			return s, result
 		}
-		found = append(found, input[:2])
-		input = input[2:]
 		input, consumed = consumeNumSep(input)
 		if consumed <= 0 && input != "" {
 			return s, result
@@ -303,14 +312,45 @@ func fixCountryNums(s string, result []string) (string, []string) {
 	return "", result
 }
 
-func fixLocation(s string) []string {
-	s = strings.TrimSpace(s)
+var (
+	locPrefixes = []string{
+		nfdString("proche de"),
+		nfdString("proche"),
+		nfdString("dpts"),
+		nfdString("dpt"),
+		nfdString("départem."),
+		nfdString("départements"),
+	}
+)
+
+func stripPrefixes(s string, result []string) (string, []string) {
+	orig := nfdString(s)
+	stripped := orig
+	for _, p := range locPrefixes {
+		if strings.HasPrefix(stripped, p) {
+			stripped = strings.TrimSpace(stripped[len(p):])
+		}
+	}
+	if stripped != orig {
+		s = stripped
+	}
+	return s, result
+}
+
+func fixIDF(s string, result []string) (string, []string) {
 	l := strings.ToLower(s)
-	result := []string{}
 	if l == "idf" {
 		result = append(result, "Ile-de-France")
 		s = ""
 	}
+	return s, result
+}
+
+func fixLocation(s string) []string {
+	result := []string{}
+	s = strings.TrimSpace(s)
+	s, result = stripPrefixes(s, result)
+	s, result = fixIDF(s, result)
 	s, result = fixCountryNums(s, result)
 	if s != "" {
 		result = append(result, s)
