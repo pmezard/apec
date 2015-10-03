@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/analysis/analyzers/custom_analyzer"
@@ -22,7 +21,6 @@ import (
 	"github.com/blevesearch/bleve/index/store/boltdb"
 	"github.com/blevesearch/bleve/index/upside_down"
 
-	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
 )
@@ -259,19 +257,7 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	return index, nil
 }
 
-func fixLocation(s string) string {
-	if !utf8.ValidString(s) {
-		fmt.Printf("invalid: %s\n", s)
-		u, _, err := transform.String(charmap.Windows1252.NewDecoder(), s)
-		if err != nil {
-			fmt.Printf("invalid: %s\n", s)
-			return s
-		}
-		if s != u {
-			fmt.Printf("recoded: %s => %s\n", s, u)
-		}
-		s = u
-	}
+func fixLocation(s string) []string {
 	s = strings.TrimSpace(s)
 	l := strings.ToLower(s)
 	if l == "idf" {
