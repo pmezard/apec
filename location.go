@@ -70,6 +70,10 @@ var (
 		nfdString("dpt"),
 		nfdString("départem."),
 		nfdString("départements"),
+		nfdString("Agglo."),
+		nfdString("Agglo"),
+		nfdString("Agence de"),
+		nfdString("Agence"),
 	}
 )
 
@@ -87,10 +91,18 @@ func stripPrefixes(s string, result []string) (string, []string) {
 	return s, result
 }
 
-func fixIDF(s string, result []string) (string, []string) {
+func fixWellKnown(s string, result []string) (string, []string) {
 	l := strings.ToLower(s)
 	if l == "idf" {
 		result = append(result, "Ile-de-France")
+		s = ""
+	}
+	if strings.Contains(l, "boulogne b") {
+		result = append(result, "Boulogne Billancourt")
+		s = ""
+	}
+	if strings.Contains(l, "velizy") {
+		result = append(result, "Velizy")
 		s = ""
 	}
 	return s, result
@@ -100,7 +112,7 @@ func fixLocation(s string) []string {
 	result := []string{}
 	s = strings.TrimSpace(s)
 	s, result = stripPrefixes(s, result)
-	s, result = fixIDF(s, result)
+	s, result = fixWellKnown(s, result)
 	s, result = fixCountryNums(s, result)
 	if s != "" {
 		result = append(result, s)
