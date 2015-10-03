@@ -36,7 +36,7 @@ func isNum(c byte) bool {
 }
 
 // fixCountryNums split inputs like "23/45 - 52 ou 92" into country numbers.
-func fixCountryNums(s string, result []string) (string, []string) {
+func fixCountryNums(s string) []string {
 	found := []string{}
 	input, _ := consumeNumSep(s)
 	var consumed int
@@ -48,18 +48,17 @@ func fixCountryNums(s string, result []string) (string, []string) {
 			found = append(found, input[:1])
 			input = input[1:]
 		} else {
-			return s, result
+			break
 		}
 		input, consumed = consumeNumSep(input)
 		if consumed <= 0 && input != "" {
-			return s, result
-		}
-		if input == "" {
 			break
 		}
+		if input == "" {
+			return found
+		}
 	}
-	result = append(result, found...)
-	return "", result
+	return []string{s}
 }
 
 var (
@@ -74,10 +73,11 @@ var (
 		nfdString("Agglo"),
 		nfdString("Agence de"),
 		nfdString("Agence"),
+		nfdString("Basé"),
 	}
 )
 
-func stripPrefixes(s string, result []string) (string, []string) {
+func stripPrefixes(s string) []string {
 	orig := nfdString(s)
 	stripped := orig
 	for _, p := range locPrefixes {
@@ -88,35 +88,47 @@ func stripPrefixes(s string, result []string) (string, []string) {
 	if stripped != orig {
 		s = stripped
 	}
-	return s, result
+	return []string{s}
 }
 
-func fixWellKnown(s string, result []string) (string, []string) {
+func splitAlternatives(s string) []string {
+	return strings.Split(s, " ou ")
+}
+
+func fixWellKnown(s string) []string {
 	l := strings.ToLower(s)
 	if l == "idf" {
-		result = append(result, "Ile-de-France")
-		s = ""
+		return []string{"Ile-de-France"}
 	}
 	if strings.Contains(l, "boulogne b") {
-		result = append(result, "Boulogne Billancourt")
-		s = ""
+		return []string{"Boulogne Billancourt"}
 	}
 	if strings.Contains(l, "velizy") {
-		result = append(result, "Velizy")
-		s = ""
+		return []string{"Velizy"}
 	}
-	return s, result
+	return []string{s}
+}
+
+func apply(input []string, fn func(string) []string) []string {
+	output := []string{}
+	for _, s := range input {
+		res := fn(s)
+		for _, r := range res {
+			r = strings.TrimSpace(r)
+			if r != "" {
+				output = append(output, r)
+			}
+		}
+	}
+	return output
 }
 
 func fixLocation(s string) []string {
-	result := []string{}
-	s = strings.TrimSpace(s)
-	s, result = stripPrefixes(s, result)
-	s, result = fixWellKnown(s, result)
-	s, result = fixCountryNums(s, result)
-	if s != "" {
-		result = append(result, s)
-	}
+	result := []string{strings.TrimSpace(s)}
+	result = apply(result, splitAlternatives)
+	result = apply(result, stripPrefixes)
+	result = apply(result, fixWellKnown)
+	result = apply(result, fixCountryNums)
 	return result
 }
 

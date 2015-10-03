@@ -33,6 +33,10 @@ func TestFixLocation(t *testing.T) {
 			Input:  "BOULOGNE BILL",
 			Output: []string{"Boulogne Billancourt"},
 		},
+		{
+			Input:  "Nantes ou paris",
+			Output: []string{"Nantes", "paris"},
+		},
 	}
 
 	for _, test := range tests {
