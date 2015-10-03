@@ -257,32 +257,89 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	return index, nil
 }
 
+func consumeNumSep(s string) (string, int) {
+	consumed := 0
+	for len(s) > 0 {
+		c := s[0]
+		if c == ' ' || c == '-' || c == '/' {
+			consumed += 1
+			s = s[1:]
+			continue
+		}
+		if strings.HasPrefix(s, "ou") || strings.HasPrefix(s, "et") {
+			consumed += 2
+			s = s[2:]
+			continue
+		}
+		break
+	}
+	return s, consumed
+}
+
+func isNum(c byte) bool {
+	return c >= '0' && c <= '9'
+}
+
+// fixCountryNums split inputs like "23/45 - 52 ou 92" into country numbers.
+func fixCountryNums(s string, result []string) (string, []string) {
+	found := []string{}
+	input, _ := consumeNumSep(s)
+	var consumed int
+	for {
+		if len(input) < 2 || !isNum(input[0]) && !isNum(input[1]) {
+			return s, result
+		}
+		found = append(found, input[:2])
+		input = input[2:]
+		input, consumed = consumeNumSep(input)
+		if consumed <= 0 && input != "" {
+			return s, result
+		}
+		if input == "" {
+			break
+		}
+	}
+	result = append(result, found...)
+	return "", result
+}
+
 func fixLocation(s string) []string {
 	s = strings.TrimSpace(s)
 	l := strings.ToLower(s)
+	result := []string{}
 	if l == "idf" {
-		return "Ile-de-France"
+		result = append(result, "Ile-de-France")
+		s = ""
 	}
-	return s
+	s, result = fixCountryNums(s, result)
+	if s != "" {
+		result = append(result, s)
+	}
+	return result
 }
 
 func geocodeOffer(geocoder *Geocoder, offer *Offer, offline bool) (
 	string, *Location, error) {
 
-	q := fixLocation(offer.Location)
-	loc, err := geocoder.Geocode(q, "fr", offline)
-	if err != nil {
-		return q, nil, err
+	var loc *Location
+	var err error
+	candidates := fixLocation(offer.Location)
+	for _, candidate := range candidates {
+		loc, err = geocoder.Geocode(candidate, "fr", offline)
+		if err != nil {
+			return candidate, nil, err
+		}
+		if loc == nil || len(loc.Results) == 0 {
+			continue
+		}
+		res := loc.Results[0].Component
+		offer.City = res.City
+		offer.County = res.County
+		offer.State = res.State
+		offer.Country = res.Country
+		return candidate, loc, nil
 	}
-	if loc == nil || len(loc.Results) == 0 {
-		return q, loc, nil
-	}
-	res := loc.Results[0].Component
-	offer.City = res.City
-	offer.County = res.County
-	offer.State = res.State
-	offer.Country = res.Country
-	return q, loc, nil
+	return offer.Location, loc, nil
 }
 
 var (
@@ -355,11 +412,11 @@ func indexOffers(cfg *Config) error {
 					result = loc.Results[0].Component.String()
 				}
 				if !loc.Cached {
-					fmt.Printf("geocoding %s => %s (quota: %d/%d)\n", q, result,
-						loc.Rate.Remaining, loc.Rate.Limit)
+					fmt.Printf("geocoding %s => %s => %s (quota: %d/%d)\n",
+						offer.Location, q, result, loc.Rate.Remaining, loc.Rate.Limit)
 					time.Sleep(1 * time.Second)
 				} else {
-					fmt.Printf("geocoding %s => %s\n", q, result)
+					fmt.Printf("geocoding %s => %s => %s\n", offer.Location, q, result)
 				}
 			}
 		} else {
