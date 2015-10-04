@@ -59,11 +59,13 @@ func parseSalary(s string) (int, int, error) {
 		}
 		values = append(values, int(v))
 	}
-	switch len(values) {
+	l := len(values)
+	switch l {
+	case 0:
+		return 0, 0, fmt.Errorf("not enough numbers")
 	case 1:
 		return values[0], values[0], nil
-	case 2:
+	default:
 		return values[0], values[1], nil
 	}
-	return 0, 0, fmt.Errorf("too many numbers")
 }

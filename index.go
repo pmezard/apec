@@ -124,8 +124,7 @@ func convertOffers(offers []*jsonOffer) ([]*Offer, error) {
 	for _, o := range offers {
 		r, err := convertOffer(o)
 		if err != nil {
-			fmt.Printf("error: cannot parse salary %q: %s\n", o.Salary, err)
-			continue
+			return nil, err
 		}
 		result = append(result, r)
 	}
