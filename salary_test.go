@@ -25,6 +25,11 @@ func TestParseSalary(t *testing.T) {
 			Min:   45,
 			Max:   60,
 		},
+		{
+			Input: "45 000 - 60 000 K€ brut/an",
+			Min:   45,
+			Max:   60,
+		},
 	}
 
 	for _, test := range tests {
