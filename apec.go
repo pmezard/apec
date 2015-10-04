@@ -58,6 +58,8 @@ func dispatch() error {
 		return web(cfg)
 	case geocodeCmd.FullCommand():
 		return geocode(cfg)
+	case upgradeCmd.FullCommand():
+		return upgrade(cfg)
 	}
 	return nil
 }

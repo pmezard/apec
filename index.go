@@ -35,7 +35,10 @@ type offerResult struct {
 }
 
 func loadOffers(store *Store) ([]*jsonOffer, error) {
-	ids := store.List()
+	ids, err := store.List()
+	if err != nil {
+		return nil, err
+	}
 	sort.Strings(ids)
 	pending := make(chan string, len(ids))
 	for _, id := range ids {

@@ -183,7 +183,7 @@ var (
 )
 
 func crawlOffers(cfg *Config) error {
-	store, err := CreateStore(cfg.Store())
+	store, err := OpenStore(cfg.Store())
 	if err != nil {
 		return err
 	}
@@ -192,7 +192,11 @@ func crawlOffers(cfg *Config) error {
 	err = enumerateOffers(*crawlMinSalary, *crawlLocations, func(ids []string) error {
 		for _, id := range ids {
 			seen[id] = true
-			if store.Has(id) {
+			ok, err := store.Has(id)
+			if err != nil {
+				return err
+			}
+			if ok {
 				continue
 			}
 			fmt.Printf("fetching %s\n", id)
@@ -201,13 +205,9 @@ func crawlOffers(cfg *Config) error {
 				return err
 			}
 			time.Sleep(time.Second)
-			written, err := store.Write(id, data)
+			err = store.Put(id, data)
 			if err != nil {
 				return err
-			}
-			if !written {
-				fmt.Printf("racing %s\n", id)
-				continue
 			}
 			added += 1
 		}
@@ -216,7 +216,11 @@ func crawlOffers(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	for _, id := range store.List() {
+	ids, err := store.List()
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
 		if !seen[id] {
 			fmt.Printf("deleting %s\n", id)
 			store.Delete(id)

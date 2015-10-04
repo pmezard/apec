@@ -1,135 +1,186 @@
 package main
 
 import (
-	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"sync"
+	"encoding/json"
+
+	"github.com/boltdb/bolt"
 )
 
 type Store struct {
-	dir   string
-	lock  sync.Mutex
-	known map[string]bool
+	db *bolt.DB
 }
 
-func listFiles(dir string) ([]string, error) {
-	fp, err := os.Open(dir)
-	if err != nil {
-		return nil, err
-	}
-	files := []string{}
-	for {
-		entries, err := fp.Readdir(1024)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-		for _, fi := range entries {
-			if fi.Mode().IsRegular() {
-				files = append(files, fi.Name())
-			}
-		}
-	}
-	return files, nil
-}
+var (
+	metaBucket   = []byte("meta")
+	offersBucket = []byte("offers")
+)
 
 func OpenStore(dir string) (*Store, error) {
-	s := &Store{
-		dir:   dir,
-		known: map[string]bool{},
-	}
-	files, err := listFiles(dir)
+	db, err := bolt.Open(dir, 0666, nil)
 	if err != nil {
 		return nil, err
-	}
-	for _, f := range files {
-		s.known[f] = true
-	}
-	return s, nil
-}
-
-func CreateStore(dir string) (*Store, error) {
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		return nil, err
-	}
-	return OpenStore(dir)
-}
-
-func (s *Store) Has(id string) bool {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return s.known[id]
-}
-
-func (s *Store) Write(id string, data []byte) (bool, error) {
-	path := filepath.Join(s.dir, id)
-	fp, err := ioutil.TempFile(s.dir, "entry-")
-	if err != nil {
-		return false, err
 	}
 	defer func() {
-		fp.Close()
-		os.Remove(fp.Name())
-	}()
-	_, err = fp.Write(data)
-	if err != nil {
-		return false, err
-	}
-	err = fp.Close()
-	if err != nil {
-		return false, err
-	}
-	err = os.Rename(fp.Name(), path)
-	if err != nil {
-		if os.IsExist(err) {
-			err = nil
+		if db != nil {
+			db.Close()
 		}
-	} else {
-		s.lock.Lock()
-		s.known[id] = true
-		s.lock.Unlock()
+	}()
+	tx, err := db.Begin(true)
+	if err != nil {
+		return nil, err
 	}
-	return true, err
+	_, err = tx.CreateBucketIfNotExists(metaBucket)
+	if err != nil {
+		return nil, err
+	}
+	store := &Store{
+		db: db,
+	}
+	err = store.setVersion(tx, 0)
+	if err != nil {
+		return nil, err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return nil, err
+	}
+	err = store.Upgrade()
+	if err != nil {
+		return nil, err
+	}
+	db = nil
+	return store, nil
 }
 
-func (s *Store) List() []string {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	ids := []string{}
-	for id := range s.known {
-		ids = append(ids, id)
-	}
-	return ids
+func (s *Store) Close() error {
+	return s.db.Close()
 }
 
-func (s *Store) Size() int {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return len(s.known)
+func (s *Store) getJson(tx *bolt.Tx, bucket []byte, key []byte,
+	output interface{}) error {
+	data := tx.Bucket(bucket).Get(key)
+	return json.Unmarshal(data, output)
+}
+
+func (s *Store) putJson(tx *bolt.Tx, bucket []byte, key []byte,
+	input interface{}) error {
+	data, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(bucket).Put(key, data)
+}
+
+type storeMeta struct {
+	Version int `json:"version"`
+}
+
+func (s *Store) getVersion(tx *bolt.Tx) (int, error) {
+	meta := &storeMeta{}
+	err := s.getJson(tx, metaBucket, []byte("version"), meta)
+	return meta.Version, err
+}
+
+func (s *Store) setVersion(tx *bolt.Tx, version int) error {
+	meta := &storeMeta{
+		Version: version,
+	}
+	return s.putJson(tx, metaBucket, []byte("version"), meta)
+}
+
+func (s *Store) Put(id string, data []byte) error {
+	tx, err := s.db.Begin(true)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	err = tx.Bucket(offersBucket).Put([]byte(id), data)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) Has(id string) (bool, error) {
+	tx, err := s.db.Begin(false)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	temp := tx.Bucket(offersBucket).Get([]byte(id))
+	return len(temp) > 0, nil
 }
 
 func (s *Store) Get(id string) ([]byte, error) {
-	path := filepath.Join(s.dir, id)
-	return ioutil.ReadFile(path)
+	tx, err := s.db.Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	temp := tx.Bucket(offersBucket).Get([]byte(id))
+	data := make([]byte, len(temp))
+	copy(data, temp)
+	return data, nil
 }
 
 func (s *Store) Delete(id string) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	if !s.known[id] {
-		return nil
-	}
-	err := os.Remove(filepath.Join(s.dir, id))
+	tx, err := s.db.Begin(true)
 	if err != nil {
-		if !os.IsNotExist(err) {
+		return err
+	}
+	defer tx.Rollback()
+	err = tx.Bucket(offersBucket).Delete([]byte(id))
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) List() ([]string, error) {
+	tx, err := s.db.Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	bucket := tx.Bucket(offersBucket)
+	size := bucket.Stats().KeyN
+	ids := make([]string, 0, size)
+	err = bucket.ForEach(func(k, v []byte) error {
+		ids = append(ids, string(k))
+		return nil
+	})
+	return ids, err
+}
+
+func (s *Store) Upgrade() error {
+	tx, err := s.db.Begin(true)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	version, err := s.getVersion(tx)
+	if err != nil {
+		return err
+	}
+	if version == 0 {
+		_, err := tx.CreateBucketIfNotExists(offersBucket)
+		if err != nil {
 			return err
 		}
+		version = 1
 	}
-	delete(s.known, id)
-	return nil
+	err = s.setVersion(tx, version)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) Size() int {
+	tx, err := s.db.Begin(false)
+	if err != nil {
+		return -1
+	}
+	defer tx.Rollback()
+	return tx.Bucket(offersBucket).Stats().KeyN
 }
