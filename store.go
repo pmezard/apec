@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/boltdb/bolt"
 )
@@ -11,8 +15,10 @@ type Store struct {
 }
 
 var (
-	metaBucket   = []byte("meta")
-	offersBucket = []byte("offers")
+	metaBucket        = []byte("meta")
+	offersBucket      = []byte("offers")
+	deletedBucket     = []byte("deleted")
+	deletedKeysBucket = []byte("deleted_keys")
 )
 
 func OpenStore(dir string) (*Store, error) {
@@ -25,24 +31,8 @@ func OpenStore(dir string) (*Store, error) {
 			db.Close()
 		}
 	}()
-	tx, err := db.Begin(true)
-	if err != nil {
-		return nil, err
-	}
-	_, err = tx.CreateBucketIfNotExists(metaBucket)
-	if err != nil {
-		return nil, err
-	}
 	store := &Store{
 		db: db,
-	}
-	err = store.setVersion(tx, 0)
-	if err != nil {
-		return nil, err
-	}
-	err = tx.Commit()
-	if err != nil {
-		return nil, err
 	}
 	err = store.Upgrade()
 	if err != nil {
@@ -89,98 +79,145 @@ func (s *Store) setVersion(tx *bolt.Tx, version int) error {
 }
 
 func (s *Store) Put(id string, data []byte) error {
-	tx, err := s.db.Begin(true)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	err = tx.Bucket(offersBucket).Put([]byte(id), data)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
+	return s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(offersBucket).Put([]byte(id), data)
+	})
 }
 
 func (s *Store) Has(id string) (bool, error) {
-	tx, err := s.db.Begin(false)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-	temp := tx.Bucket(offersBucket).Get([]byte(id))
-	return len(temp) > 0, nil
+	ok := false
+	err := s.db.View(func(tx *bolt.Tx) error {
+		temp := tx.Bucket(offersBucket).Get([]byte(id))
+		ok = len(temp) > 0
+		return nil
+	})
+	return ok, err
 }
 
 func (s *Store) Get(id string) ([]byte, error) {
-	tx, err := s.db.Begin(false)
+	var data []byte
+	err := s.db.View(func(tx *bolt.Tx) error {
+		temp := tx.Bucket(offersBucket).Get([]byte(id))
+		data = make([]byte, len(temp))
+		copy(data, temp)
+		return nil
+	})
+	return data, err
+}
+
+type deletedOffer struct {
+	Id   uint64 `json:"id"`
+	Date string `json:"date"`
+}
+
+// deletedOffers maps its key offer identifier to deleted virtual identifiers.
+// In theory, offers should be deleted only once, but I do not know APEC data
+// structure. Better be safe than sorry.
+type deletedOffers struct {
+	Ids []deletedOffer `json:"ids"`
+}
+
+func uint64ToBytes(id uint64) []byte {
+	buf := &bytes.Buffer{}
+	err := binary.Write(buf, binary.LittleEndian, &id)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	defer tx.Rollback()
-	temp := tx.Bucket(offersBucket).Get([]byte(id))
-	data := make([]byte, len(temp))
-	copy(data, temp)
-	return data, nil
+	return buf.Bytes()
 }
 
 func (s *Store) Delete(id string) error {
-	tx, err := s.db.Begin(true)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	err = tx.Bucket(offersBucket).Delete([]byte(id))
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
+	return s.db.Update(func(tx *bolt.Tx) error {
+		key := []byte(id)
+		// Move data in "deleted" table
+		deleted := tx.Bucket(deletedBucket)
+		deletedId, err := deleted.NextSequence()
+		if err != nil {
+			return err
+		}
+		data := tx.Bucket(offersBucket).Get(key)
+		err = tx.Bucket(deletedBucket).Put(uint64ToBytes(deletedId), data)
+		if err != nil {
+			return err
+		}
+		// Update offer id to deleted virtual ids mapping
+		deletedKeys := &deletedOffers{}
+		err = s.getJson(tx, deletedKeysBucket, key, deletedKeys)
+		if err != nil {
+			return err
+		}
+		deletedKeys.Ids = append(deletedKeys.Ids, deletedOffer{
+			Id:   deletedId,
+			Date: time.Now().Format(time.RFC3339),
+		})
+		err = s.putJson(tx, deletedKeysBucket, key, deletedKeys)
+		if err != nil {
+			return err
+		}
+		// Delete the live offer
+		return tx.Bucket(offersBucket).Delete(key)
+	})
 }
 
 func (s *Store) List() ([]string, error) {
-	tx, err := s.db.Begin(false)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	bucket := tx.Bucket(offersBucket)
-	size := bucket.Stats().KeyN
-	ids := make([]string, 0, size)
-	err = bucket.ForEach(func(k, v []byte) error {
-		ids = append(ids, string(k))
-		return nil
+	var ids []string
+	err := s.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(offersBucket)
+		size := bucket.Stats().KeyN
+		ids = make([]string, 0, size)
+		return bucket.ForEach(func(k, v []byte) error {
+			ids = append(ids, string(k))
+			return nil
+		})
 	})
 	return ids, err
 }
 
 func (s *Store) Upgrade() error {
-	tx, err := s.db.Begin(true)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	version, err := s.getVersion(tx)
-	if err != nil {
-		return err
-	}
-	if version == 0 {
-		_, err := tx.CreateBucketIfNotExists(offersBucket)
-		if err != nil {
-			return err
+	return s.db.Update(func(tx *bolt.Tx) error {
+		var err error
+		version := 0
+		bucket := tx.Bucket(metaBucket)
+		if bucket == nil {
+			_, err = tx.CreateBucketIfNotExists(metaBucket)
+			if err != nil {
+				return err
+			}
+		} else {
+			version, err = s.getVersion(tx)
+			if err != nil {
+				return err
+			}
 		}
-		version = 1
-	}
-	err = s.setVersion(tx, version)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
+		if version == 0 {
+			fmt.Printf("upgrading store to version 1\n")
+			_, err := tx.CreateBucketIfNotExists(offersBucket)
+			if err != nil {
+				return err
+			}
+			version = 1
+		}
+		if version == 1 {
+			fmt.Printf("upgrading store to version 2\n")
+			_, err = tx.CreateBucketIfNotExists(deletedBucket)
+			if err != nil {
+				return err
+			}
+			_, err = tx.CreateBucketIfNotExists(deletedKeysBucket)
+			if err != nil {
+				return err
+			}
+			version = 2
+		}
+		return s.setVersion(tx, version)
+	})
 }
 
 func (s *Store) Size() int {
-	tx, err := s.db.Begin(false)
-	if err != nil {
-		return -1
-	}
-	defer tx.Rollback()
-	return tx.Bucket(offersBucket).Stats().KeyN
+	n := 0
+	s.db.View(func(tx *bolt.Tx) error {
+		n = tx.Bucket(offersBucket).Stats().KeyN
+		return nil
+	})
+	return n
 }

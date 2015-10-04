@@ -71,6 +71,17 @@ func upgrade(cfg *Config) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		fmt.Printf("upgrading boltdb schema\n")
+		// Assume boltdb, open it just to force an upgrade
+		db, err := OpenStore(storeDir)
+		if err != nil {
+			return err
+		}
+		err = db.Close()
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
