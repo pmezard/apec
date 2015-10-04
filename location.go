@@ -125,12 +125,18 @@ func apply(input []string, fn func(string) []string) []string {
 	return output
 }
 
+func nfcString(s string) []string {
+	result, _, _ := transform.String(norm.NFC, s)
+	return []string{result}
+}
+
 func fixLocation(s string) []string {
 	result := []string{strings.TrimSpace(s)}
 	result = apply(result, splitAlternatives)
 	result = apply(result, stripPrefixes)
 	result = apply(result, fixWellKnown)
 	result = apply(result, fixCountryNums)
+	result = apply(result, nfcString)
 	return result
 }
 
