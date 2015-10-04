@@ -85,12 +85,12 @@ func loadOffers(store *Store) ([]*jsonOffer, error) {
 
 type Offer struct {
 	Account   string
-	Id        string `json:"id"`
-	HTML      string `json:"html"`
-	Title     string `json:"title"`
-	MinSalary int    `json:"min_salary"`
-	MaxSalary int    `json:"max_salary"`
-	Date      time.Time
+	Id        string    `json:"id"`
+	HTML      string    `json:"html"`
+	Title     string    `json:"title"`
+	MinSalary int       `json:"min_salary"`
+	MaxSalary int       `json:"max_salary"`
+	Date      time.Time `json:"date"`
 	URL       string
 	Location  string `json:"location"`
 	City      string `json:"city"`
@@ -235,6 +235,12 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	text.IncludeInAll = false
 	text.IncludeTermVectors = false
 
+	date := bleve.NewDateTimeFieldMapping()
+	date.Index = false
+	date.Store = true
+	date.IncludeTermVectors = false
+	date.IncludeInAll = false
+
 	offer := bleve.NewDocumentStaticMapping()
 	offer.Dynamic = false
 	offer.AddFieldMappingsAt("html", textFr)
@@ -243,6 +249,7 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	offer.AddFieldMappingsAt("county", text)
 	offer.AddFieldMappingsAt("state", text)
 	offer.AddFieldMappingsAt("country", text)
+	offer.AddFieldMappingsAt("date", date)
 
 	m.AddDocumentMapping("offer", offer)
 	m.DefaultMapping = offer

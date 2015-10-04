@@ -20,17 +20,22 @@ type offerData struct {
 	Location string
 }
 
-type sortedOfferDate []*offerData
+type datedOffer struct {
+	Date string
+	Id   string
+}
 
-func (s sortedOfferDate) Len() int {
+type sortedDatedOffers []datedOffer
+
+func (s sortedDatedOffers) Len() int {
 	return len(s)
 }
 
-func (s sortedOfferDate) Swap(i, j int) {
+func (s sortedDatedOffers) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-func (s sortedOfferDate) Less(i, j int) bool {
+func (s sortedDatedOffers) Less(i, j int) bool {
 	return s[i].Date > s[j].Date
 }
 
@@ -44,9 +49,11 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	query := values.Get("q")
 	q := bleve.NewQueryStringQuery(query)
 	rq := bleve.NewSearchRequest(q)
-	rq.Size = 100
+	rq.Size = 250
+	rq.Fields = []string{"date"}
 	offers := []*offerData{}
 	maxDisplayed := 1000
+	sortedOffers := []datedOffer{}
 	total := 0
 	for {
 		if query == "" {
@@ -58,47 +65,58 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 		}
 		total = int(res.Total)
 		for _, doc := range res.Hits {
-			if len(offers) >= maxDisplayed {
-				break
+			date, ok := doc.Fields["date"].(string)
+			if !ok {
+				return fmt.Errorf("could not retrieve date for %s", doc.ID)
 			}
-			data, err := store.Get(doc.ID)
-			if err != nil {
-				return err
-			}
-			o := &jsonOffer{}
-			err = json.Unmarshal(data, o)
-			if err != nil {
-				return err
-			}
-			offer, err := convertOffer(o)
-			if err != nil {
-				fmt.Printf("error: cannot convert offer: %s\n", err)
-				continue
-			}
-			salary := ""
-			if offer.MinSalary > 0 {
-				if offer.MaxSalary != offer.MinSalary {
-					salary = fmt.Sprintf("(%d - %d kEUR)",
-						offer.MinSalary, offer.MaxSalary)
-				} else {
-					salary = fmt.Sprintf("(%d kEUR)", offer.MinSalary)
-				}
-			}
-			offers = append(offers, &offerData{
-				Account:  offer.Account,
-				Title:    offer.Title,
-				Date:     offer.Date.Format("2006-01-02"),
-				URL:      offer.URL,
-				Salary:   salary,
-				Location: offer.Location,
+			sortedOffers = append(sortedOffers, datedOffer{
+				Date: date,
+				Id:   doc.ID,
 			})
 		}
-		if len(res.Hits) < rq.Size || len(offers) >= maxDisplayed {
+		if len(res.Hits) < rq.Size {
 			break
 		}
 		rq.From += rq.Size
 	}
-	sort.Sort(sortedOfferDate(offers))
+	sort.Sort(sortedDatedOffers(sortedOffers))
+
+	for _, doc := range sortedOffers {
+		if len(offers) >= maxDisplayed {
+			break
+		}
+		data, err := store.Get(doc.Id)
+		if err != nil {
+			return err
+		}
+		o := &jsonOffer{}
+		err = json.Unmarshal(data, o)
+		if err != nil {
+			return err
+		}
+		offer, err := convertOffer(o)
+		if err != nil {
+			fmt.Printf("error: cannot convert offer: %s\n", err)
+			continue
+		}
+		salary := ""
+		if offer.MinSalary > 0 {
+			if offer.MaxSalary != offer.MinSalary {
+				salary = fmt.Sprintf("(%d - %d kEUR)",
+					offer.MinSalary, offer.MaxSalary)
+			} else {
+				salary = fmt.Sprintf("(%d kEUR)", offer.MinSalary)
+			}
+		}
+		offers = append(offers, &offerData{
+			Account:  offer.Account,
+			Title:    offer.Title,
+			Date:     offer.Date.Format("2006-01-02"),
+			URL:      offer.URL,
+			Salary:   salary,
+			Location: offer.Location,
+		})
+	}
 	data := struct {
 		Offers    []*offerData
 		Displayed int
