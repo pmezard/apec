@@ -266,30 +266,9 @@ var (
 )
 
 func indexOffers(cfg *Config) error {
-	var geocoder *Geocoder
-	key := cfg.GeocodingKey()
-	if key != "" {
-		g, err := NewGeocoder(key, cfg.Geocoder())
-		if err != nil {
-			return err
-		}
-		geocoder = g
-		defer func() {
-			if geocoder != nil {
-				geocoder.Close()
-			}
-		}()
-	}
 	store, err := OpenStore(cfg.Store())
 	if err != nil {
 		return err
-	}
-	var index bleve.Index
-	if !*indexNoIndex {
-		index, err = NewOfferIndex(cfg.Index())
-		if err != nil {
-			return err
-		}
 	}
 	rawOffers, err := loadOffers(store)
 	if err != nil {
@@ -302,59 +281,47 @@ func indexOffers(cfg *Config) error {
 	if *indexMaxSize > 0 && len(offers) > *indexMaxSize {
 		offers = offers[:*indexMaxSize]
 	}
-	start := time.Now()
-	rejected := 0
-	indexed := 0
-	for i, offer := range offers {
-		if (i+1)%500 == 0 {
-			now := time.Now()
-			elapsed := float64(now.Sub(start)) / float64(time.Second)
-			fmt.Printf("%d indexed, %.1f/s\n", i+1, float64(i+1)/elapsed)
-		}
-		if geocoder != nil {
-			q, loc, err := geocodeOffer(geocoder, offer, rejected > 0)
-			if err != nil {
-				fmt.Printf("error: geocoding %s: %s\n", q, err)
-				if err != QuotaError {
-					return err
-				}
-				rejected += 1
-			} else if loc == nil {
-				rejected += 1
-			} else if !loc.Cached || *indexVerbose {
-				result := "no result"
-				if len(loc.Results) > 0 {
-					result = loc.Results[0].Component.String()
-				}
-				if !loc.Cached {
-					fmt.Printf("geocoding %s => %s => %s (quota: %d/%d)\n",
-						offer.Location, q, result, loc.Rate.Remaining, loc.Rate.Limit)
-					time.Sleep(1 * time.Second)
-				} else {
-					fmt.Printf("geocoding %s => %s => %s\n", offer.Location, q, result)
-				}
-			}
-		} else {
-			rejected += 1
-		}
 
-		if index != nil {
+	rejected := 0
+	geocodingKey := cfg.GeocodingKey()
+	if geocodingKey != "" {
+		geocoder, err := NewGeocoder(geocodingKey, cfg.Geocoder())
+		if err != nil {
+			return err
+		}
+		defer geocoder.Close()
+		rejected, err = geocodeOffers(geocoder, offers, *indexVerbose)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%d rejected geocoding\n", rejected)
+	}
+	if !*indexNoIndex {
+		index, err := NewOfferIndex(cfg.Index())
+		if err != nil {
+			return err
+		}
+		start := time.Now()
+		indexed := 0
+		for i, offer := range offers {
+			if (i+1)%500 == 0 {
+				now := time.Now()
+				elapsed := float64(now.Sub(start)) / float64(time.Second)
+				fmt.Printf("%d indexed, %.1f/s\n", i+1, float64(i+1)/elapsed)
+			}
 			err = index.Index(offer.Id, offer)
 			if err != nil {
 				return err
 			}
 			indexed += 1
 		}
-	}
-	if index != nil {
 		err = index.Close()
 		if err != nil {
 			return err
 		}
+		end := time.Now()
+		fmt.Printf("%d/%d documents indexed in %.2fs\n", indexed, len(offers),
+			float64(end.Sub(start))/float64(time.Second))
 	}
-	end := time.Now()
-	fmt.Printf("%d/%d documents indexed in %.2fs\n", indexed, len(offers),
-		float64(end.Sub(start))/float64(time.Second))
-	fmt.Printf("%d rejected geocoding\n", rejected)
 	return nil
 }

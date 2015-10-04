@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
@@ -154,4 +156,33 @@ func geocodeOffer(geocoder *Geocoder, offer *Offer, offline bool) (
 		return candidate, loc, nil
 	}
 	return offer.Location, loc, nil
+}
+
+func geocodeOffers(geocoder *Geocoder, offers []*Offer, verbose bool) (int, error) {
+	rejected := 0
+	for _, offer := range offers {
+		q, loc, err := geocodeOffer(geocoder, offer, rejected > 0)
+		if err != nil {
+			fmt.Printf("error: geocoding %s: %s\n", q, err)
+			if err != QuotaError {
+				return rejected, err
+			}
+			rejected += 1
+		} else if loc == nil {
+			rejected += 1
+		} else if !loc.Cached || verbose {
+			result := "no result"
+			if len(loc.Results) > 0 {
+				result = loc.Results[0].Component.String()
+			}
+			if !loc.Cached {
+				fmt.Printf("geocoding %s => %s => %s (quota: %d/%d)\n",
+					offer.Location, q, result, loc.Rate.Remaining, loc.Rate.Limit)
+				time.Sleep(1 * time.Second)
+			} else {
+				fmt.Printf("geocoding %s => %s => %s\n", offer.Location, q, result)
+			}
+		}
+	}
+	return rejected, nil
 }
