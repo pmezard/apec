@@ -32,12 +32,9 @@ func NewCache(dir string) (*Cache, error) {
 	if err != nil {
 		return nil, err
 	}
-	bucket := tx.Bucket(bucketName)
-	if bucket == nil {
-		_, err = tx.CreateBucket(bucketName)
-		if err != nil {
-			return nil, err
-		}
+	_, err = tx.CreateBucketIfNotExists(bucketName)
+	if err != nil {
+		return nil, err
 	}
 	err = tx.Commit()
 	if err != nil {
