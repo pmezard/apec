@@ -185,8 +185,8 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	text.IncludeTermVectors = false
 
 	date := bleve.NewDateTimeFieldMapping()
-	date.Index = true
-	date.Store = false
+	date.Index = false
+	date.Store = true
 	date.IncludeTermVectors = false
 	date.IncludeInAll = false
 
