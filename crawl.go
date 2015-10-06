@@ -178,7 +178,7 @@ func enumerateOffers(minSalary int, locations []int, callback func([]string) err
 
 var (
 	crawlCmd       = app.Command("crawl", "crawl APEC offers")
-	crawlMinSalary = crawlCmd.Arg("min-salary", "minimum salary in kEUR").Default("50").Int()
+	crawlMinSalary = crawlCmd.Arg("min-salary", "minimum salary in kEUR").Default("0").Int()
 	crawlLocations = crawlCmd.Flag("location", "offer location code").Ints()
 )
 
