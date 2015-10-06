@@ -217,7 +217,9 @@ var (
 	indexCmd     = app.Command("index", "index APEC offers")
 	indexMaxSize = indexCmd.Flag("max-count", "maximum number of items to index").
 			Short('n').Default("0").Int()
-	indexNoIndex = indexCmd.Flag("no-index", "disable indexing").Bool()
+	// Work around kingpin messing with boolean flags starting with --no-xxx (#54)
+	indexIndex = indexCmd.Flag("index", "enable indexing (use --no-index to disable it)").
+			Default("true").Bool()
 	indexVerbose = indexCmd.Flag("verbose", "verbose mode").Short('v').Bool()
 )
 
@@ -252,7 +254,7 @@ func indexOffers(cfg *Config) error {
 		}
 		fmt.Printf("%d rejected geocoding\n", rejected)
 	}
-	if !*indexNoIndex {
+	if *indexIndex {
 		index, err := NewOfferIndex(cfg.Index())
 		if err != nil {
 			return err
