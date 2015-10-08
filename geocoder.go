@@ -28,15 +28,10 @@ func NewCache(dir string) (*Cache, error) {
 	if err != nil {
 		return nil, err
 	}
-	tx, err := db.Begin(true)
-	if err != nil {
-		return nil, err
-	}
-	_, err = tx.CreateBucketIfNotExists(bucketName)
-	if err != nil {
-		return nil, err
-	}
-	err = tx.Commit()
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists(bucketName)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -50,36 +45,22 @@ func (c *Cache) Close() error {
 }
 
 func (c *Cache) Put(key string, data []byte) error {
-	tx, err := c.db.Begin(true)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if tx != nil {
-			tx.Rollback()
-		}
-	}()
-	bucket := tx.Bucket(bucketName)
-	err = bucket.Put([]byte(key), data)
-	if err != nil {
-		return err
-	}
-	err = tx.Commit()
-	tx = nil
-	return err
+	return c.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(bucketName)
+		return bucket.Put([]byte(key), data)
+	})
 }
 
 func (c *Cache) Get(key string) ([]byte, error) {
-	tx, err := c.db.Begin(false)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	bucket := tx.Bucket(bucketName)
-	temp := bucket.Get([]byte(key))
-	data := make([]byte, len(temp))
-	copy(data, temp)
-	return data, nil
+	var data []byte
+	err := c.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(bucketName)
+		temp := bucket.Get([]byte(key))
+		data = make([]byte, len(temp))
+		copy(data, temp)
+		return nil
+	})
+	return data, err
 }
 
 type Geocoder struct {
