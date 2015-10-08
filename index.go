@@ -222,7 +222,9 @@ var (
 	// Work around kingpin messing with boolean flags starting with --no-xxx (#54)
 	indexIndex = indexCmd.Flag("index", "enable indexing (use --no-index to disable it)").
 			Default("true").Bool()
-	indexVerbose = indexCmd.Flag("verbose", "verbose mode").Short('v').Bool()
+	indexVerbose  = indexCmd.Flag("verbose", "verbose mode").Short('v').Bool()
+	indexMinQuota = indexCmd.Flag("min-quota",
+		"stop geocoding when call quota moves below supplied value").Default("500").Int()
 )
 
 func indexOffers(cfg *Config) error {
@@ -250,7 +252,7 @@ func indexOffers(cfg *Config) error {
 			return err
 		}
 		defer geocoder.Close()
-		rejected, err = geocodeOffers(geocoder, offers, *indexVerbose)
+		rejected, err = geocodeOffers(geocoder, offers, *indexMinQuota, *indexVerbose)
 		if err != nil {
 			return err
 		}

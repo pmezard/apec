@@ -164,7 +164,9 @@ func geocodeOffer(geocoder *Geocoder, offer *Offer, offline bool) (
 	return offer.Location, loc, nil
 }
 
-func geocodeOffers(geocoder *Geocoder, offers []*Offer, verbose bool) (int, error) {
+func geocodeOffers(geocoder *Geocoder, offers []*Offer, minQuota int,
+	verbose bool) (int, error) {
+
 	rejected := 0
 	for _, offer := range offers {
 		q, loc, err := geocodeOffer(geocoder, offer, rejected > 0)
@@ -184,6 +186,12 @@ func geocodeOffers(geocoder *Geocoder, offers []*Offer, verbose bool) (int, erro
 			if !loc.Cached {
 				fmt.Printf("geocoding %s => %s => %s (quota: %d/%d)\n",
 					offer.Location, q, result, loc.Rate.Remaining, loc.Rate.Limit)
+				if loc.Rate.Remaining <= minQuota {
+					// Try to preserve quota for test purpose. This is not
+					// perfect as it consumes one geocoding token per function
+					// call. I do not know how to query quota directly yet.
+					rejected += 1
+				}
 				time.Sleep(1 * time.Second)
 			} else {
 				fmt.Printf("geocoding %s => %s => %s\n", offer.Location, q, result)
