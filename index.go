@@ -169,35 +169,37 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 		return nil, fmt.Errorf("failed to register analyzer fr_html: %s", err)
 	}
 
-	html := bleve.NewTextFieldMapping()
-	html.Store = false
-	html.IncludeTermVectors = false
-	html.Analyzer = "fr_html"
+	htmlFr := bleve.NewTextFieldMapping()
+	htmlFr.Store = false
+	htmlFr.IncludeInAll = false
+	htmlFr.IncludeTermVectors = false
+	htmlFr.Analyzer = "fr_html"
 
 	textFr := bleve.NewTextFieldMapping()
 	textFr.Store = false
+	textFr.IncludeInAll = false
 	textFr.IncludeTermVectors = false
 	textFr.Analyzer = "fr"
 
-	text := bleve.NewTextFieldMapping()
-	text.Store = false
-	text.IncludeInAll = false
-	text.IncludeTermVectors = false
+	textAll := bleve.NewTextFieldMapping()
+	textAll.Store = false
+	textAll.IncludeInAll = true
+	textAll.IncludeTermVectors = false
 
 	date := bleve.NewDateTimeFieldMapping()
 	date.Index = false
 	date.Store = true
-	date.IncludeTermVectors = false
 	date.IncludeInAll = false
+	date.IncludeTermVectors = false
 
 	offer := bleve.NewDocumentStaticMapping()
 	offer.Dynamic = false
-	offer.AddFieldMappingsAt("html", textFr)
+	offer.AddFieldMappingsAt("html", htmlFr)
 	offer.AddFieldMappingsAt("title", textFr)
-	offer.AddFieldMappingsAt("city", text)
-	offer.AddFieldMappingsAt("county", text)
-	offer.AddFieldMappingsAt("state", text)
-	offer.AddFieldMappingsAt("country", text)
+	offer.AddFieldMappingsAt("city", textAll)
+	offer.AddFieldMappingsAt("county", textAll)
+	offer.AddFieldMappingsAt("state", textAll)
+	offer.AddFieldMappingsAt("country", textAll)
 	offer.AddFieldMappingsAt("date", date)
 
 	m.AddDocumentMapping("offer", offer)
