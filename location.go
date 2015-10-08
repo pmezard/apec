@@ -71,11 +71,11 @@ var (
 		nfdString("dpt"),
 		nfdString("départem."),
 		nfdString("départements"),
-		nfdString("Agglo."),
-		nfdString("Agglo"),
-		nfdString("Agence de"),
-		nfdString("Agence"),
-		nfdString("Basé"),
+		nfdString("agglo."),
+		nfdString("agglo"),
+		nfdString("agence de"),
+		nfdString("agence"),
+		nfdString("basé"),
 	}
 )
 
@@ -98,15 +98,14 @@ func splitAlternatives(s string) []string {
 }
 
 func fixWellKnown(s string) []string {
-	l := strings.ToLower(s)
-	if l == "idf" {
-		return []string{"Ile-de-France"}
+	if s == "idf" {
+		return []string{"ile-de-france"}
 	}
-	if strings.Contains(l, "boulogne b") {
-		return []string{"Boulogne Billancourt"}
+	if strings.Contains(s, "boulogne b") {
+		return []string{"boulogne billancourt"}
 	}
-	if strings.Contains(l, "velizy") {
-		return []string{"Velizy"}
+	if strings.Contains(s, "velizy") {
+		return []string{"velizy"}
 	}
 	return []string{s}
 }
@@ -131,7 +130,7 @@ func nfcString(s string) []string {
 }
 
 func fixLocation(s string) []string {
-	result := []string{strings.TrimSpace(s)}
+	result := []string{strings.TrimSpace(strings.ToLower(s))}
 	result = apply(result, splitAlternatives)
 	result = apply(result, stripPrefixes)
 	result = apply(result, fixWellKnown)

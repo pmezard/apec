@@ -10,12 +10,16 @@ func TestFixLocation(t *testing.T) {
 		Output []string
 	}{
 		{
+			Input:  "Quimperlé",
+			Output: []string{"quimperlé"},
+		},
+		{
 			Input:  "Paris",
-			Output: []string{"Paris"},
+			Output: []string{"paris"},
 		},
 		{
 			Input:  "Idf",
-			Output: []string{"Ile-de-France"},
+			Output: []string{"ile-de-france"},
 		},
 		{
 			Input:  "29 - 56/75 ou 92, 93 ",
@@ -23,7 +27,7 @@ func TestFixLocation(t *testing.T) {
 		},
 		{
 			Input:  "proche velizy",
-			Output: []string{"Velizy"},
+			Output: []string{"velizy"},
 		},
 		{
 			Input:  "départements 22 et 1",
@@ -31,11 +35,11 @@ func TestFixLocation(t *testing.T) {
 		},
 		{
 			Input:  "BOULOGNE BILL",
-			Output: []string{"Boulogne Billancourt"},
+			Output: []string{"boulogne billancourt"},
 		},
 		{
 			Input:  "Nantes ou paris",
-			Output: []string{"Nantes", "paris"},
+			Output: []string{"nantes", "paris"},
 		},
 	}
 

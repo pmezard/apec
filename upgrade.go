@@ -59,6 +59,22 @@ func upgradeFileStoreToBoltDB(storeDir string) error {
 	return os.Rename(tempPath, storeDir)
 }
 
+func upgradeGeocoder(dir string) error {
+	seen := false
+	log := func(s string) {
+		if !seen {
+			fmt.Printf("upgrading geocoder store\n")
+			seen = true
+		}
+		fmt.Print("  " + s)
+	}
+	_, err := NewCache(dir, log)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func upgrade(cfg *Config) error {
 	storeDir := cfg.Store()
 	st, err := os.Stat(storeDir)
@@ -83,5 +99,5 @@ func upgrade(cfg *Config) error {
 			return err
 		}
 	}
-	return nil
+	return upgradeGeocoder(cfg.Geocoder())
 }
