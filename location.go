@@ -167,7 +167,7 @@ func geocodeOffers(geocoder *Geocoder, offers []*Offer, minQuota int,
 	verbose bool) (int, error) {
 
 	rejected := 0
-	for _, offer := range offers {
+	for i, offer := range offers {
 		q, loc, err := geocodeOffer(geocoder, offer, rejected > 0)
 		if err != nil {
 			fmt.Printf("error: geocoding %s: %s\n", q, err)
@@ -182,9 +182,11 @@ func geocodeOffers(geocoder *Geocoder, offers []*Offer, minQuota int,
 			if len(loc.Results) > 0 {
 				result = loc.Results[0].Component.String()
 			}
+			prefix := fmt.Sprintf("geocoding %d/%d %s => %s => %s", i+1, len(offers),
+				offer.Location, q, result)
 			if !loc.Cached {
-				fmt.Printf("geocoding %s => %s => %s (quota: %d/%d)\n",
-					offer.Location, q, result, loc.Rate.Remaining, loc.Rate.Limit)
+				fmt.Printf("%s (quota: %d/%d)\n", prefix, loc.Rate.Remaining,
+					loc.Rate.Limit)
 				if loc.Rate.Remaining <= minQuota {
 					// Try to preserve quota for test purpose. This is not
 					// perfect as it consumes one geocoding token per function
@@ -193,7 +195,7 @@ func geocodeOffers(geocoder *Geocoder, offers []*Offer, minQuota int,
 				}
 				time.Sleep(1 * time.Second)
 			} else {
-				fmt.Printf("geocoding %s => %s => %s\n", offer.Location, q, result)
+				fmt.Printf("%s\n", prefix)
 			}
 		}
 	}
