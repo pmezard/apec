@@ -49,7 +49,7 @@ func dispatch() error {
 	cfg := NewConfig(*dataDir)
 	switch cmd {
 	case crawlCmd.FullCommand():
-		return crawlOffers(cfg)
+		return crawlFn(cfg)
 	case indexCmd.FullCommand():
 		return indexOffers(cfg)
 	case searchCmd.FullCommand():

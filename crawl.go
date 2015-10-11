@@ -176,46 +176,90 @@ func enumerateOffers(minSalary int, locations []int, callback func([]string) err
 	return nil
 }
 
-var (
-	crawlCmd       = app.Command("crawl", "crawl APEC offers")
-	crawlMinSalary = crawlCmd.Arg("min-salary", "minimum salary in kEUR").Default("0").Int()
-	crawlLocations = crawlCmd.Flag("location", "offer location code").Ints()
-)
-
-func crawlOffers(cfg *Config) error {
-	store, err := OpenStore(cfg.Store())
-	if err != nil {
-		return err
-	}
-	added, deleted := 0, 0
-	seen := map[string]bool{}
-	err = enumerateOffers(*crawlMinSalary, *crawlLocations, func(ids []string) error {
-		for _, id := range ids {
-			seen[id] = true
-			ok, err := store.Has(id)
-			if err != nil {
-				return err
-			}
-			if ok {
-				continue
-			}
-			fmt.Printf("fetching %s\n", id)
-			data, err := getOffer(id)
-			if err != nil {
-				return err
-			}
-			time.Sleep(time.Second)
-			err = store.Put(id, data)
-			if err != nil {
-				return err
-			}
-			added += 1
+func crawlOffers(store *Store, ids []string) (int, error) {
+	added := 0
+	for _, id := range ids {
+		ok, err := store.Has(id)
+		if err != nil {
+			return added, err
 		}
-		return nil
-	})
-	if err != nil {
-		return err
+		if ok {
+			continue
+		}
+		fmt.Printf("fetching %s\n", id)
+		data, err := getOffer(id)
+		if err != nil {
+			return added, err
+		}
+		time.Sleep(time.Second)
+		err = store.Put(id, data)
+		if err != nil {
+			return added, err
+		}
+		added += 1
 	}
+	return added, nil
+}
+
+func crawl(store *Store, minSalary int, locations []int) error {
+	idsChan := make(chan []string)
+	stopListing := make(chan bool)
+	listingDone := make(chan error)
+	crawlingDone := make(chan error)
+
+	// List offers in one goroutine. This reduces the races between our
+	// enumeration and possible web site updates.
+	seen := map[string]bool{}
+	go func() {
+		pending := []string{}
+		err := enumerateOffers(minSalary, locations, func(ids []string) error {
+			for _, id := range ids {
+				seen[id] = true
+			}
+			pending = append(pending, ids...)
+			select {
+			case <-stopListing:
+				return fmt.Errorf("offer enumeration was interrupted")
+			case idsChan <- pending:
+				pending = nil
+			default:
+			}
+			return nil
+		})
+		close(idsChan)
+		listingDone <- err
+	}()
+
+	// Crawl offers in another goroutine
+	added := 0
+	go func() {
+		for ids := range idsChan {
+			n, err := crawlOffers(store, ids)
+			added += n
+			if n < len(ids) {
+				fmt.Printf("%d known offers ignored\n", len(ids)-n)
+			}
+			if err != nil {
+				crawlingDone <- err
+				break
+			}
+		}
+		close(crawlingDone)
+	}()
+
+	// Shutdown everything cleanly
+	crawlingErr := <-crawlingDone
+	close(stopListing)
+	listingErr := <-listingDone
+	if listingErr != nil {
+		return listingErr
+	}
+	if crawlingErr != nil {
+		return crawlingErr
+	}
+
+	// Delete unseen offers
+	deleted := 0
 	ids, err := store.List()
 	if err != nil {
 		return err
@@ -229,4 +273,26 @@ func crawlOffers(cfg *Config) error {
 	}
 	fmt.Printf("%d added, %d deleted, %d total\n", added, deleted, store.Size())
 	return nil
+}
+
+var (
+	crawlCmd       = app.Command("crawl", "crawl APEC offers")
+	crawlMinSalary = crawlCmd.Arg("min-salary", "minimum salary in kEUR").Default("0").Int()
+	crawlLocations = crawlCmd.Flag("location", "offer location code").Ints()
+)
+
+func crawlFn(cfg *Config) error {
+	store, err := OpenStore(cfg.Store())
+	if err != nil {
+		return err
+	}
+	var closeErr error
+	defer func() {
+		closeErr = store.Close()
+	}()
+	err = crawl(store, *crawlMinSalary, *crawlLocations)
+	if err != nil {
+		return err
+	}
+	return closeErr
 }
