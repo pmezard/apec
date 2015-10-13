@@ -46,10 +46,17 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+func (s *Store) Path() string {
+	return s.db.Path()
+}
+
 func (s *Store) getJson(tx *bolt.Tx, bucket []byte, key []byte,
-	output interface{}) error {
+	output interface{}) (bool, error) {
 	data := tx.Bucket(bucket).Get(key)
-	return json.Unmarshal(data, output)
+	if data == nil {
+		return false, nil
+	}
+	return true, json.Unmarshal(data, output)
 }
 
 func (s *Store) putJson(tx *bolt.Tx, bucket []byte, key []byte,
@@ -67,7 +74,7 @@ type storeMeta struct {
 
 func (s *Store) getVersion(tx *bolt.Tx) (int, error) {
 	meta := &storeMeta{}
-	err := s.getJson(tx, metaBucket, []byte("version"), meta)
+	_, err := s.getJson(tx, metaBucket, []byte("version"), meta)
 	return meta.Version, err
 }
 
@@ -98,14 +105,16 @@ func (s *Store) Get(id string) ([]byte, error) {
 	var data []byte
 	err := s.db.View(func(tx *bolt.Tx) error {
 		temp := tx.Bucket(offersBucket).Get([]byte(id))
-		data = make([]byte, len(temp))
-		copy(data, temp)
+		if temp != nil {
+			data = make([]byte, len(temp))
+			copy(data, temp)
+		}
 		return nil
 	})
 	return data, err
 }
 
-type deletedOffer struct {
+type DeletedOffer struct {
 	Id   uint64 `json:"id"`
 	Date string `json:"date"`
 }
@@ -114,7 +123,7 @@ type deletedOffer struct {
 // In theory, offers should be deleted only once, but I do not know APEC data
 // structure. Better be safe than sorry.
 type deletedOffers struct {
-	Ids []deletedOffer `json:"ids"`
+	Ids []DeletedOffer `json:"ids"`
 }
 
 func uint64ToBytes(id uint64) []byte {
@@ -129,24 +138,27 @@ func uint64ToBytes(id uint64) []byte {
 func (s *Store) Delete(id string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		key := []byte(id)
+		data := tx.Bucket(offersBucket).Get(key)
+		if data == nil {
+			return nil
+		}
 		// Move data in "deleted" table
 		deleted := tx.Bucket(deletedBucket)
 		deletedId, err := deleted.NextSequence()
 		if err != nil {
 			return err
 		}
-		data := tx.Bucket(offersBucket).Get(key)
 		err = tx.Bucket(deletedBucket).Put(uint64ToBytes(deletedId), data)
 		if err != nil {
 			return err
 		}
 		// Update offer id to deleted virtual ids mapping
 		deletedKeys := &deletedOffers{}
-		err = s.getJson(tx, deletedKeysBucket, key, deletedKeys)
+		_, err = s.getJson(tx, deletedKeysBucket, key, deletedKeys)
 		if err != nil {
 			return err
 		}
-		deletedKeys.Ids = append(deletedKeys.Ids, deletedOffer{
+		deletedKeys.Ids = append(deletedKeys.Ids, DeletedOffer{
 			Id:   deletedId,
 			Date: time.Now().Format(time.RFC3339),
 		})
@@ -157,6 +169,28 @@ func (s *Store) Delete(id string) error {
 		// Delete the live offer
 		return tx.Bucket(offersBucket).Delete(key)
 	})
+}
+
+func (s *Store) ListDeletedIds() ([]string, error) {
+	ids := []string{}
+	err := s.db.View(func(tx *bolt.Tx) error {
+		deleted := tx.Bucket(deletedKeysBucket)
+		return deleted.ForEach(func(k, v []byte) error {
+			ids = append(ids, string(k))
+			return nil
+		})
+	})
+	return ids, err
+}
+
+func (s *Store) ListDeletedOffers(id string) ([]DeletedOffer, error) {
+	deletedKeys := &deletedOffers{}
+	err := s.db.View(func(tx *bolt.Tx) error {
+		deleted := tx.Bucket(deletedKeysBucket)
+		data := deleted.Get([]byte(id))
+		return json.Unmarshal(data, deletedKeys)
+	})
+	return []DeletedOffer(deletedKeys.Ids), err
 }
 
 func (s *Store) List() ([]string, error) {

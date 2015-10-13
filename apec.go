@@ -60,6 +60,8 @@ func dispatch() error {
 		return geocode(cfg)
 	case upgradeCmd.FullCommand():
 		return upgrade(cfg)
+	case dumpDeletedCmd.FullCommand():
+		return dumpDeletedOffersFn(cfg)
 	}
 	return nil
 }
