@@ -277,7 +277,7 @@ func crawl(store *Store, minSalary int, locations []int) error {
 
 var (
 	crawlCmd       = app.Command("crawl", "crawl APEC offers")
-	crawlMinSalary = crawlCmd.Arg("min-salary", "minimum salary in kEUR").Default("0").Int()
+	crawlMinSalary = crawlCmd.Flag("min-salary", "minimum salary in kEUR").Default("0").Int()
 	crawlLocations = crawlCmd.Flag("location", "offer location code").Ints()
 )
 
