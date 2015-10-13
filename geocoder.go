@@ -217,8 +217,14 @@ func (c *LocComponent) String() string {
 	return s
 }
 
+type LocGeom struct {
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lng"`
+}
+
 type LocResult struct {
 	Component LocComponent `json:"components"`
+	Geometry  *LocGeom     `json:"geometry"`
 }
 
 type Location struct {

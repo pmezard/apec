@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/blevesearch/bleve"
+	"github.com/patrick-higgins/rtreego"
 )
 
 type offerData struct {
@@ -39,49 +42,13 @@ func (s sortedDatedOffers) Less(i, j int) bool {
 	return s[i].Date > s[j].Date
 }
 
-func serveQuery(templ *template.Template, store *Store, index bleve.Index,
-	w http.ResponseWriter, r *http.Request) error {
+func formatOffers(templ *template.Template, store *Store, datedOffers []datedOffer,
+	query string, w http.ResponseWriter, r *http.Request) error {
 
-	values, err := url.ParseQuery(r.URL.RawQuery)
-	if err != nil {
-		return err
-	}
-	query := values.Get("q")
-	q := bleve.NewQueryStringQuery(query)
-	rq := bleve.NewSearchRequest(q)
-	rq.Size = 250
-	rq.Fields = []string{"date"}
 	offers := []*offerData{}
 	maxDisplayed := 1000
-	sortedOffers := []datedOffer{}
-	total := 0
-	for {
-		if query == "" {
-			break
-		}
-		res, err := index.Search(rq)
-		if err != nil {
-			return err
-		}
-		total = int(res.Total)
-		for _, doc := range res.Hits {
-			date, ok := doc.Fields["date"].(string)
-			if !ok {
-				return fmt.Errorf("could not retrieve date for %s", doc.ID)
-			}
-			sortedOffers = append(sortedOffers, datedOffer{
-				Date: date,
-				Id:   doc.ID,
-			})
-		}
-		if len(res.Hits) < rq.Size {
-			break
-		}
-		rq.From += rq.Size
-	}
-	sort.Sort(sortedDatedOffers(sortedOffers))
-
-	for _, doc := range sortedOffers {
+	sort.Sort(sortedDatedOffers(datedOffers))
+	for _, doc := range datedOffers {
 		if len(offers) >= maxDisplayed {
 			break
 		}
@@ -125,7 +92,7 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	}{
 		Offers:    offers,
 		Displayed: len(offers),
-		Total:     total,
+		Total:     len(datedOffers),
 		Query:     query,
 	}
 	h := w.Header()
@@ -134,9 +101,101 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	return nil
 }
 
+func findOffersFromText(index bleve.Index, query string) ([]datedOffer, error) {
+	q := bleve.NewQueryStringQuery(query)
+	rq := bleve.NewSearchRequest(q)
+	rq.Size = 250
+	rq.Fields = []string{"date"}
+	datedOffers := []datedOffer{}
+	for {
+		if query == "" {
+			break
+		}
+		res, err := index.Search(rq)
+		if err != nil {
+			return nil, err
+		}
+		for _, doc := range res.Hits {
+			date, ok := doc.Fields["date"].(string)
+			if !ok {
+				return nil, fmt.Errorf("could not retrieve date for %s", doc.ID)
+			}
+			datedOffers = append(datedOffers, datedOffer{
+				Date: date,
+				Id:   doc.ID,
+			})
+		}
+		if len(res.Hits) < rq.Size {
+			break
+		}
+		rq.From += rq.Size
+	}
+	return datedOffers, nil
+}
+
+func findOffersFromLocation(query string, rtree *rtreego.Rtree, geocoder *Geocoder) (
+	[]datedOffer, error) {
+
+	parts := strings.Split(query, ",")
+	lat, lon, radius := float64(0), float64(0), float64(0)
+	if len(parts) == 2 {
+		loc, err := geocoder.GeocodeFromCache(strings.ToLower(parts[0]), "fr")
+		if err != nil {
+			return nil, err
+		}
+		if loc == nil || len(loc.Results) == 0 || loc.Results[0].Geometry == nil {
+			return nil, fmt.Errorf("could not geocode %s", query)
+		}
+		g := loc.Results[0].Geometry
+		lat = g.Lat
+		lon = g.Lon
+		radius, err = strconv.ParseFloat(parts[1], 64)
+		if err != nil {
+			return nil, err
+		}
+	} else if len(parts) == 3 {
+		floats := []float64{}
+		for _, p := range parts {
+			f, err := strconv.ParseFloat(p, 64)
+			if err != nil {
+				return nil, err
+			}
+			floats = append(floats, f)
+		}
+		lat = floats[0]
+		lon = floats[1]
+		radius = floats[2]
+	} else {
+		return nil, fmt.Errorf("location query must be like: lat,lng,radius or name,radius")
+	}
+	datedOffers, err := findNearestOffers(rtree, lat, lon, radius)
+	return datedOffers, err
+}
+
+func serveQuery(templ *template.Template, store *Store, index bleve.Index,
+	rtree *rtreego.Rtree, geocoder *Geocoder, w http.ResponseWriter, r *http.Request) error {
+
+	values, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		return err
+	}
+	query := values.Get("q")
+	var datedOffers []datedOffer
+	prefix := "loc:"
+	if strings.HasPrefix(query, prefix) {
+		datedOffers, err = findOffersFromLocation(query[len(prefix):], rtree, geocoder)
+	} else {
+		datedOffers, err = findOffersFromText(index, query)
+	}
+	if err != nil {
+		return err
+	}
+	return formatOffers(templ, store, datedOffers, query, w, r)
+}
+
 func handleQuery(templ *template.Template, store *Store, index bleve.Index,
-	w http.ResponseWriter, r *http.Request) {
-	err := serveQuery(templ, store, index, w, r)
+	rtree *rtreego.Rtree, geocoder *Geocoder, w http.ResponseWriter, r *http.Request) {
+	err := serveQuery(templ, store, index, rtree, geocoder, w, r)
 	if err != nil {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(400)
@@ -163,8 +222,16 @@ func web(cfg *Config) error {
 	if err != nil {
 		return err
 	}
+	geocoder, err := NewGeocoder(cfg.GeocodingKey(), cfg.Geocoder())
+	if err != nil {
+		return err
+	}
+	rtree, err := buildSpatialIndex(store, geocoder)
+	if err != nil {
+		return err
+	}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		handleQuery(templ, store, index, w, r)
+		handleQuery(templ, store, index, rtree, geocoder, w, r)
 	})
 	return http.ListenAndServe(*webHttp, nil)
 }
