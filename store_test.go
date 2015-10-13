@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -77,5 +78,12 @@ func TestOfferDeletion(t *testing.T) {
 	}
 	if len(deletedOffers) == 0 {
 		t.Fatalf("deleted data was not recorded")
+	}
+	deletedData, err := store.GetDeleted(deletedOffers[0].Id)
+	if err != nil {
+		t.Fatalf("could not get deleted data: %s", err)
+	}
+	if bytes.Compare(deletedData, data) != 0 {
+		t.Fatalf("deleted data does not match data: %x != %x", deletedData, data)
 	}
 }

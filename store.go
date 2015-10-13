@@ -193,6 +193,19 @@ func (s *Store) ListDeletedOffers(id string) ([]DeletedOffer, error) {
 	return []DeletedOffer(deletedKeys.Ids), err
 }
 
+func (s *Store) GetDeleted(id uint64) ([]byte, error) {
+	var data []byte
+	err := s.db.View(func(tx *bolt.Tx) error {
+		temp := tx.Bucket(deletedBucket).Get(uint64ToBytes(id))
+		if temp != nil {
+			data = make([]byte, len(temp))
+			copy(data, temp)
+		}
+		return nil
+	})
+	return data, err
+}
+
 func (s *Store) List() ([]string, error) {
 	var ids []string
 	err := s.db.View(func(tx *bolt.Tx) error {
