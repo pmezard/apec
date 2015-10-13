@@ -122,6 +122,19 @@ func convertOffer(offer *jsonOffer) (*Offer, error) {
 	return r, nil
 }
 
+func getStoreOffer(store *Store, id string) (*Offer, error) {
+	data, err := store.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	js := &jsonOffer{}
+	err = json.Unmarshal(data, js)
+	if err != nil {
+		return nil, err
+	}
+	return convertOffer(js)
+}
+
 func convertOffers(offers []*jsonOffer) ([]*Offer, error) {
 	result := make([]*Offer, 0, len(offers))
 	for _, o := range offers {

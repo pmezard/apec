@@ -62,6 +62,8 @@ func dispatch() error {
 		return upgrade(cfg)
 	case dumpDeletedCmd.FullCommand():
 		return dumpDeletedOffersFn(cfg)
+	case changesCmd.FullCommand():
+		return changesFn(cfg)
 	}
 	return nil
 }
