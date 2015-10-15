@@ -96,7 +96,8 @@ type Offer struct {
 }
 
 const (
-	ApecURL = "https://cadres.apec.fr/offres-emploi-cadres/offre.html?numIdOffre="
+	ApecURL = "https://cadres.apec.fr/home/mes-offres/recherche-des-offres-demploi/" +
+		"liste-des-offres-demploi/detail-de-loffre-demploi.html?numIdOffre="
 )
 
 func convertOffer(offer *jsonOffer) (*Offer, error) {
