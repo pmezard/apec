@@ -229,6 +229,12 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	return index, nil
 }
 
+func OpenOfferIndex(path string) (bleve.Index, error) {
+	return bleve.OpenUsing(path, map[string]interface{}{
+		"nosync": false,
+	})
+}
+
 var (
 	indexCmd     = app.Command("index", "index APEC offers")
 	indexMaxSize = indexCmd.Flag("max-count", "maximum number of items to index").

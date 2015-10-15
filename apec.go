@@ -33,6 +33,10 @@ func (d *Config) Index() string {
 	return filepath.Join(d.RootDir, "index")
 }
 
+func (d *Config) Queue() string {
+	return filepath.Join(d.RootDir, "queue")
+}
+
 func (d *Config) Geocoder() string {
 	return filepath.Join(d.RootDir, "geocoder")
 }

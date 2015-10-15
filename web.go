@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -187,6 +188,7 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	} else {
 		datedOffers, err = findOffersFromText(index, query)
 	}
+	log.Printf("query '%s' returned %d entries", query, len(datedOffers))
 	if err != nil {
 		return err
 	}
@@ -197,6 +199,7 @@ func handleQuery(templ *template.Template, store *Store, index bleve.Index,
 	rtree *rtreego.Rtree, geocoder *Geocoder, w http.ResponseWriter, r *http.Request) {
 	err := serveQuery(templ, store, index, rtree, geocoder, w, r)
 	if err != nil {
+		log.Printf("error: query failed with: %s", err)
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(400)
 		fmt.Fprintf(w, "error: %s\n", err)
@@ -213,7 +216,7 @@ func web(cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("cannot open data store: %s", err)
 	}
-	index, err := bleve.Open(cfg.Index())
+	index, err := OpenOfferIndex(cfg.Index())
 	if err != nil {
 		return fmt.Errorf("cannot open index: %s", err)
 	}
@@ -230,8 +233,21 @@ func web(cfg *Config) error {
 	if err != nil {
 		return err
 	}
+	queue, err := OpenIndexQueue(cfg.Queue())
+	if err != nil {
+		return err
+	}
+	defer queue.Close()
+	indexer := NewIndexer(store, index, geocoder, queue)
+	defer indexer.Close()
+	indexer.Sync()
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		handleQuery(templ, store, index, rtree, geocoder, w, r)
+	})
+	http.HandleFunc("/sync", func(w http.ResponseWriter, r *http.Request) {
+		indexer.Sync()
+		w.Write([]byte("OK"))
 	})
 	return http.ListenAndServe(*webHttp, nil)
 }
