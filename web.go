@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/blevesearch/bleve"
-	"github.com/patrick-higgins/rtreego"
 )
 
 type offerData struct {
@@ -134,7 +133,7 @@ func findOffersFromText(index bleve.Index, query string) ([]datedOffer, error) {
 	return datedOffers, nil
 }
 
-func findOffersFromLocation(query string, rtree *rtreego.Rtree, geocoder *Geocoder) (
+func findOffersFromLocation(query string, spatial *SpatialIndex, geocoder *Geocoder) (
 	[]datedOffer, error) {
 
 	parts := strings.Split(query, ",")
@@ -169,12 +168,12 @@ func findOffersFromLocation(query string, rtree *rtreego.Rtree, geocoder *Geocod
 	} else {
 		return nil, fmt.Errorf("location query must be like: lat,lng,radius or name,radius")
 	}
-	datedOffers, err := findNearestOffers(rtree, lat, lon, radius)
+	datedOffers, err := spatial.FindNearest(lat, lon, radius)
 	return datedOffers, err
 }
 
 func serveQuery(templ *template.Template, store *Store, index bleve.Index,
-	rtree *rtreego.Rtree, geocoder *Geocoder, w http.ResponseWriter, r *http.Request) error {
+	spatial *SpatialIndex, geocoder *Geocoder, w http.ResponseWriter, r *http.Request) error {
 
 	values, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
@@ -184,7 +183,7 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	var datedOffers []datedOffer
 	prefix := "loc:"
 	if strings.HasPrefix(query, prefix) {
-		datedOffers, err = findOffersFromLocation(query[len(prefix):], rtree, geocoder)
+		datedOffers, err = findOffersFromLocation(query[len(prefix):], spatial, geocoder)
 	} else {
 		datedOffers, err = findOffersFromText(index, query)
 	}
@@ -196,8 +195,8 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 }
 
 func handleQuery(templ *template.Template, store *Store, index bleve.Index,
-	rtree *rtreego.Rtree, geocoder *Geocoder, w http.ResponseWriter, r *http.Request) {
-	err := serveQuery(templ, store, index, rtree, geocoder, w, r)
+	spatial *SpatialIndex, geocoder *Geocoder, w http.ResponseWriter, r *http.Request) {
+	err := serveQuery(templ, store, index, spatial, geocoder, w, r)
 	if err != nil {
 		log.Printf("error: query failed with: %s", err)
 		w.Header().Set("Content-Type", "text/plain")
@@ -229,10 +228,7 @@ func web(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	rtree, err := buildSpatialIndex(store, geocoder)
-	if err != nil {
-		return err
-	}
+	spatial := NewSpatialIndex()
 	queue, err := OpenIndexQueue(cfg.Queue())
 	if err != nil {
 		return err
@@ -242,11 +238,16 @@ func web(cfg *Config) error {
 	defer indexer.Close()
 	indexer.Sync()
 
+	spatialIndexer := NewSpatialIndexer(store, spatial, geocoder)
+	defer spatialIndexer.Close()
+	spatialIndexer.Sync()
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		handleQuery(templ, store, index, rtree, geocoder, w, r)
+		handleQuery(templ, store, index, spatial, geocoder, w, r)
 	})
 	http.HandleFunc("/sync", func(w http.ResponseWriter, r *http.Request) {
 		indexer.Sync()
+		spatialIndexer.Sync()
 		w.Write([]byte("OK"))
 	})
 	return http.ListenAndServe(*webHttp, nil)

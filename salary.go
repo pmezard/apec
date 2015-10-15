@@ -16,14 +16,14 @@ var (
 	reSalaryUndef = regexp.MustCompile(`^(?:.*(definir|negoc|profil|experience|a voir|determiner|attract|precise|selon|competitif).*|nc|-)$`)
 	reSalarySep   = regexp.MustCompile(`\d\s+0\s+\d`)
 	reSalarySplit = regexp.MustCompile(`(?:^|\D)(\d+)\s+(\d{3})(?:\D|$)`)
-	cleaner       = transform.Chain(norm.NFD,
+)
+
+func cleanSalary(input string) string {
+	cleaner := transform.Chain(norm.NFD,
 		transform.RemoveFunc(func(r rune) bool {
 			return unicode.Is(unicode.Mn, r) // Mn: nonspacing marks
 		}),
 		norm.NFC)
-)
-
-func cleanSalary(input string) string {
 	output, _, _ := transform.String(cleaner, input)
 	output = strings.ToLower(output)
 	m := reSalarySep.FindStringSubmatchIndex(output)

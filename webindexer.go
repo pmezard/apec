@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"sort"
 
 	"github.com/blevesearch/bleve"
 )
@@ -116,31 +115,19 @@ func (idx *Indexer) resetQueue() error {
 	if err != nil {
 		return err
 	}
-	sort.Strings(stored)
 	indexed, err := listIndexIds(idx.index)
 	if err != nil {
 		return err
 	}
-	sort.Strings(indexed)
+	added, removed := diffIds(stored, indexed)
 
-	// List additions
-	for _, id := range stored {
-		i := sort.SearchStrings(indexed, id)
-		if i >= len(indexed) || indexed[i] != id {
-			ops = append(ops, Queued{Id: id, Op: AddOp})
-		}
+	for _, id := range added {
+		ops = append(ops, Queued{Id: id, Op: AddOp})
 	}
-	added := len(ops)
-
-	// List removals
-	for _, id := range indexed {
-		i := sort.SearchStrings(stored, id)
-		if i >= len(stored) || stored[i] != id {
-			ops = append(ops, Queued{Id: id, Op: RemoveOp})
-		}
+	for _, id := range removed {
+		ops = append(ops, Queued{Id: id, Op: RemoveOp})
 	}
-	removed := len(ops) - added
-	log.Printf("queuing %d additions, %d removals", added, removed)
+	log.Printf("queuing %d additions, %d removals", len(added), len(removed))
 
 	// Update queue
 	err = idx.queue.DeleteMany(idx.queue.Size())

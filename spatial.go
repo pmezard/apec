@@ -1,9 +1,8 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/patrick-higgins/rtreego"
@@ -24,16 +23,7 @@ var (
 )
 
 func getOfferLocation(store *Store, geocoder *Geocoder, id string) (*OfferLoc, error) {
-	data, err := store.Get(id)
-	if err != nil {
-		return nil, err
-	}
-	js := &jsonOffer{}
-	err = json.Unmarshal(data, js)
-	if err != nil {
-		return nil, err
-	}
-	offer, err := convertOffer(js)
+	offer, err := getStoreOffer(store, id)
 	if err != nil {
 		return nil, err
 	}
@@ -58,27 +48,48 @@ func getOfferLocation(store *Store, geocoder *Geocoder, id string) (*OfferLoc, e
 	}, nil
 }
 
-func buildSpatialIndex(store *Store, geocoder *Geocoder) (*rtreego.Rtree, error) {
-	ids, err := store.List()
-	if err != nil {
-		return nil, err
+type SpatialIndex struct {
+	lock  sync.Mutex
+	rtree *rtreego.Rtree
+	known map[string]*OfferLoc
+}
+
+func NewSpatialIndex() *SpatialIndex {
+	return &SpatialIndex{
+		rtree: rtreego.NewTree(2, 25),
+		known: map[string]*OfferLoc{},
 	}
-	rt := rtreego.NewTree(2, 25)
-	for i, id := range ids {
-		if (i+1)%500 == 0 {
-			fmt.Printf("%d/%d spatially indexed\n", i+1, len(ids))
-		}
-		loc, err := getOfferLocation(store, geocoder, id)
-		if err != nil {
-			return nil, err
-		}
-		if loc == nil {
-			continue
-		}
-		rt.Insert(loc)
+}
+
+func (s *SpatialIndex) Add(o *OfferLoc) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	prev := s.known[o.Id]
+	if prev != nil {
+		s.rtree.Delete(prev)
 	}
-	fmt.Printf("%d spatially indexed\n", rt.Size())
-	return rt, nil
+	s.rtree.Insert(o)
+	s.known[o.Id] = o
+}
+
+func (s *SpatialIndex) Remove(id string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	o := s.known[id]
+	if o != nil {
+		s.rtree.Delete(o)
+		delete(s.known, id)
+	}
+}
+
+func (s *SpatialIndex) List() []string {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	ids := make([]string, len(s.known))
+	for id := range s.known {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 func makeGeoRect(lat, lon, radius float64) (rtreego.Rect, error) {
@@ -91,15 +102,16 @@ func makeGeoRect(lat, lon, radius float64) (rtreego.Rect, error) {
 	return rtreego.NewRect(rtreego.Point{lon, lat}, [2]float64{2 * dlon, 2 * dlat})
 }
 
-func findNearestOffers(rt *rtreego.Rtree, lat, lon, maxDist float64) (
-	[]datedOffer, error) {
+func (s *SpatialIndex) FindNearest(lat, lon, maxDist float64) ([]datedOffer, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	query, err := makeGeoRect(lat, lon, maxDist)
 	if err != nil {
 		return nil, err
 	}
 	offers := []datedOffer{}
-	results := rt.SearchIntersect(&query)
+	results := s.rtree.SearchIntersect(&query)
 	for _, r := range results {
 		loc := r.(*OfferLoc)
 		offers = append(offers, datedOffer{
