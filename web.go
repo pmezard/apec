@@ -192,7 +192,8 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 		datedOffers, err = findOffersFromText(index, query)
 	}
 	end := time.Now()
-	log.Printf("query '%s' returned %d entries", query, len(datedOffers))
+	log.Printf("query '%s' returned %d entries in %.3fs", query, len(datedOffers),
+		float64(end.Sub(start))/float64(time.Second))
 	if err != nil {
 		return err
 	}
