@@ -111,33 +111,27 @@ func formatOffers(templ *template.Template, store *Store, datedOffers []datedOff
 }
 
 func findOffersFromText(index bleve.Index, query string) ([]datedOffer, error) {
+	if query == "" {
+		return nil, nil
+	}
+	datedOffers := []datedOffer{}
 	q := bleve.NewQueryStringQuery(query)
 	rq := bleve.NewSearchRequest(q)
-	rq.Size = 250
+	rq.Size = 20000
 	rq.Fields = []string{"date"}
-	datedOffers := []datedOffer{}
-	for {
-		if query == "" {
-			break
+	res, err := index.Search(rq)
+	if err != nil {
+		return nil, err
+	}
+	for _, doc := range res.Hits {
+		date, ok := doc.Fields["date"].(string)
+		if !ok {
+			return nil, fmt.Errorf("could not retrieve date for %s", doc.ID)
 		}
-		res, err := index.Search(rq)
-		if err != nil {
-			return nil, err
-		}
-		for _, doc := range res.Hits {
-			date, ok := doc.Fields["date"].(string)
-			if !ok {
-				return nil, fmt.Errorf("could not retrieve date for %s", doc.ID)
-			}
-			datedOffers = append(datedOffers, datedOffer{
-				Date: date,
-				Id:   doc.ID,
-			})
-		}
-		if len(res.Hits) < rq.Size {
-			break
-		}
-		rq.From += rq.Size
+		datedOffers = append(datedOffers, datedOffer{
+			Date: date,
+			Id:   doc.ID,
+		})
 	}
 	return datedOffers, nil
 }
