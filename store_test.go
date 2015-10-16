@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"testing"
+	"time"
 )
 
 func assertErr(t *testing.T, err error) {
@@ -19,11 +19,10 @@ func openTempStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatalf("could not create store temporary directory: %s", err)
 	}
-	path := filepath.Join(dir, "index")
-	store, err := OpenStore(path)
+	store, err := OpenStore(dir)
 	if err != nil {
 		os.RemoveAll(dir)
-		t.Fatalf("could not open store on %s: %s", path, err)
+		t.Fatalf("could not open store on %s: %s", dir, err)
 	}
 	return store
 }
@@ -40,11 +39,12 @@ func TestOfferDeletion(t *testing.T) {
 	store := openTempStore(t)
 	defer closeAndDeleteStore(t, store)
 
+	now := time.Now()
 	data := []byte("dummy")
 	id := "id1"
 
 	// Delete missing offer
-	err := store.Delete(id)
+	err := store.Delete(id, now)
 	if err != nil {
 		t.Fatalf("error while deleted missing entry: %s", err)
 	}
@@ -54,7 +54,7 @@ func TestOfferDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not write entry: %s", err)
 	}
-	err = store.Delete(id)
+	err = store.Delete(id, now)
 	if err != nil {
 		t.Fatalf("could not deleted created entry: %s", err)
 	}

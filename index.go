@@ -248,6 +248,7 @@ func indexOffers(cfg *Config) error {
 	if err != nil {
 		return err
 	}
+	defer store.Close()
 	rawOffers, err := loadOffers(store)
 	if err != nil {
 		return err

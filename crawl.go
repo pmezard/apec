@@ -264,10 +264,11 @@ func crawl(store *Store, minSalary int, locations []int) error {
 	if err != nil {
 		return err
 	}
+	now := time.Now()
 	for _, id := range ids {
 		if !seen[id] {
 			fmt.Printf("deleting %s\n", id)
-			store.Delete(id)
+			store.Delete(id, now)
 			deleted += 1
 		}
 	}

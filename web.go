@@ -215,6 +215,7 @@ func web(cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("cannot open data store: %s", err)
 	}
+	defer store.Close()
 	index, err := OpenOfferIndex(cfg.Index())
 	if err != nil {
 		return fmt.Errorf("cannot open index: %s", err)

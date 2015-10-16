@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+	"io/ioutil"
 	"os"
 	"sync"
 
@@ -21,7 +22,11 @@ type KVDB struct {
 }
 
 func OpenKVDB(path string, maxSize int) (*KVDB, error) {
-	opts := &kv.Options{}
+	opts := &kv.Options{
+		Locker: func(name string) (io.Closer, error) {
+			return ioutil.NopCloser(nil), nil
+		},
+	}
 	db, err := kv.Create(path, opts)
 	if err != nil {
 		if !os.IsExist(err) {

@@ -1,45 +1,31 @@
 package main
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
+	"path/filepath"
 	"time"
-
-	"github.com/boltdb/bolt"
 )
 
 type Store struct {
-	db *bolt.DB
+	db *KVDB
 }
 
 var (
-	metaBucket        = []byte("meta")
-	offersBucket      = []byte("offers")
-	deletedBucket     = []byte("deleted")
-	deletedKeysBucket = []byte("deleted_keys")
+	kvMetaBucket        = []byte("m")
+	kvOffersBucket      = []byte("o")
+	kvDeletedBucket     = []byte("d")
+	kvDeletedKeysBucket = []byte("dk")
 )
 
 func OpenStore(dir string) (*Store, error) {
-	db, err := bolt.Open(dir, 0666, nil)
+	db, err := OpenKVDB(filepath.Join(dir, "kv"), 0)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if db != nil {
-			db.Close()
-		}
-	}()
-	store := &Store{
+	return &Store{
 		db: db,
-	}
-	err = store.Upgrade()
-	if err != nil {
-		return nil, err
-	}
-	db = nil
-	return store, nil
+	}, nil
 }
 
 func (s *Store) Close() error {
@@ -50,52 +36,58 @@ func (s *Store) Path() string {
 	return s.db.Path()
 }
 
-func (s *Store) getJson(tx *bolt.Tx, bucket []byte, key []byte,
-	output interface{}) (bool, error) {
-	data := tx.Bucket(bucket).Get(key)
+func (s *Store) getJson(prefix []byte, key []byte, output interface{}) (
+	bool, error) {
+
+	data, err := s.db.Get(prefix, key)
+	if err != nil {
+		return false, err
+	}
 	if data == nil {
 		return false, nil
 	}
 	return true, json.Unmarshal(data, output)
 }
 
-func (s *Store) putJson(tx *bolt.Tx, bucket []byte, key []byte,
-	input interface{}) error {
+func (s *Store) putJson(prefix []byte, key []byte, input interface{}) error {
 	data, err := json.Marshal(input)
 	if err != nil {
 		return err
 	}
-	return tx.Bucket(bucket).Put(key, data)
+	return s.db.Put(prefix, key, data)
 }
 
-type storeMeta struct {
+type kvStoreMeta struct {
 	Version int `json:"version"`
 }
 
-func (s *Store) getVersion(tx *bolt.Tx) (int, error) {
-	meta := &storeMeta{}
-	_, err := s.getJson(tx, metaBucket, []byte("version"), meta)
+func (s *Store) getVersion() (int, error) {
+	meta := &kvStoreMeta{}
+	_, err := s.getJson(kvMetaBucket, []byte("version"), meta)
 	return meta.Version, err
 }
 
-func (s *Store) setVersion(tx *bolt.Tx, version int) error {
-	meta := &storeMeta{
+func (s *Store) setVersion(version int) error {
+	meta := &kvStoreMeta{
 		Version: version,
 	}
-	return s.putJson(tx, metaBucket, []byte("version"), meta)
+	return s.putJson(kvMetaBucket, []byte("version"), meta)
 }
 
 func (s *Store) Put(id string, data []byte) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(offersBucket).Put([]byte(id), data)
+	return s.db.Update(func() error {
+		return s.db.Put(kvOffersBucket, []byte(id), data)
 	})
 }
 
 func (s *Store) Has(id string) (bool, error) {
 	ok := false
-	err := s.db.View(func(tx *bolt.Tx) error {
-		temp := tx.Bucket(offersBucket).Get([]byte(id))
-		ok = len(temp) > 0
+	err := s.db.View(func() error {
+		data, err := s.db.Get(kvOffersBucket, []byte(id))
+		if err != nil {
+			return err
+		}
+		ok = data != nil
 		return nil
 	})
 	return ok, err
@@ -103,15 +95,18 @@ func (s *Store) Has(id string) (bool, error) {
 
 func (s *Store) Get(id string) ([]byte, error) {
 	var data []byte
-	err := s.db.View(func(tx *bolt.Tx) error {
-		temp := tx.Bucket(offersBucket).Get([]byte(id))
-		if temp != nil {
-			data = make([]byte, len(temp))
-			copy(data, temp)
-		}
-		return nil
+	err := s.db.View(func() error {
+		d, err := s.db.Get(kvOffersBucket, []byte(id))
+		data = d
+		return err
 	})
 	return data, err
+}
+
+func uintToBytes(id uint64) []byte {
+	buf := make([]byte, binary.MaxVarintLen64)
+	n := binary.PutUvarint(buf, id)
+	return buf[:n]
 }
 
 type DeletedOffer struct {
@@ -126,145 +121,94 @@ type deletedOffers struct {
 	Ids []DeletedOffer `json:"ids"`
 }
 
-func uint64ToBytes(id uint64) []byte {
-	buf := &bytes.Buffer{}
-	err := binary.Write(buf, binary.LittleEndian, &id)
-	if err != nil {
-		panic(err)
-	}
-	return buf.Bytes()
-}
-
-func (s *Store) Delete(id string) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+func (s *Store) Delete(id string, now time.Time) error {
+	return s.db.Update(func() error {
 		key := []byte(id)
-		data := tx.Bucket(offersBucket).Get(key)
+		data, err := s.db.Get(kvOffersBucket, key)
+		if err != nil {
+			return err
+		}
 		if data == nil {
 			return nil
 		}
 		// Move data in "deleted" table
-		deleted := tx.Bucket(deletedBucket)
-		deletedId, err := deleted.NextSequence()
+		deletedId, err := s.db.Inc(kvDeletedBucket, 1)
 		if err != nil {
 			return err
 		}
-		err = tx.Bucket(deletedBucket).Put(uint64ToBytes(deletedId), data)
+		err = s.db.Put(kvDeletedBucket, uintToBytes(uint64(deletedId)), data)
 		if err != nil {
 			return err
 		}
 		// Update offer id to deleted virtual ids mapping
 		deletedKeys := &deletedOffers{}
-		_, err = s.getJson(tx, deletedKeysBucket, key, deletedKeys)
+		_, err = s.getJson(kvDeletedKeysBucket, key, deletedKeys)
 		if err != nil {
 			return err
 		}
 		deletedKeys.Ids = append(deletedKeys.Ids, DeletedOffer{
-			Id:   deletedId,
-			Date: time.Now().Format(time.RFC3339),
+			Id:   uint64(deletedId),
+			Date: now.Format(time.RFC3339),
 		})
-		err = s.putJson(tx, deletedKeysBucket, key, deletedKeys)
+		err = s.putJson(kvDeletedKeysBucket, key, deletedKeys)
 		if err != nil {
 			return err
 		}
 		// Delete the live offer
-		return tx.Bucket(offersBucket).Delete(key)
+		return s.db.Delete(kvOffersBucket, key)
 	})
 }
 
 func (s *Store) ListDeletedIds() ([]string, error) {
+	var err error
 	ids := []string{}
-	err := s.db.View(func(tx *bolt.Tx) error {
-		deleted := tx.Bucket(deletedKeysBucket)
-		return deleted.ForEach(func(k, v []byte) error {
-			ids = append(ids, string(k))
-			return nil
-		})
+	err = s.db.View(func() error {
+		ids, err = s.db.List(kvDeletedKeysBucket)
+		return err
 	})
 	return ids, err
 }
 
 func (s *Store) ListDeletedOffers(id string) ([]DeletedOffer, error) {
 	deletedKeys := &deletedOffers{}
-	err := s.db.View(func(tx *bolt.Tx) error {
-		deleted := tx.Bucket(deletedKeysBucket)
-		data := deleted.Get([]byte(id))
+	err := s.db.View(func() error {
+		data, err := s.db.Get(kvDeletedKeysBucket, []byte(id))
+		if err != nil {
+			return err
+		}
 		return json.Unmarshal(data, deletedKeys)
 	})
 	return []DeletedOffer(deletedKeys.Ids), err
 }
 
 func (s *Store) GetDeleted(id uint64) ([]byte, error) {
+	var err error
 	var data []byte
-	err := s.db.View(func(tx *bolt.Tx) error {
-		temp := tx.Bucket(deletedBucket).Get(uint64ToBytes(id))
-		if temp != nil {
-			data = make([]byte, len(temp))
-			copy(data, temp)
-		}
-		return nil
+	err = s.db.View(func() error {
+		data, err = s.db.Get(kvDeletedBucket, uintToBytes(id))
+		return err
 	})
 	return data, err
 }
 
 func (s *Store) List() ([]string, error) {
+	var err error
 	var ids []string
-	err := s.db.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket(offersBucket)
-		size := bucket.Stats().KeyN
-		ids = make([]string, 0, size)
-		return bucket.ForEach(func(k, v []byte) error {
-			ids = append(ids, string(k))
-			return nil
-		})
+	err = s.db.View(func() error {
+		ids, err = s.db.List(kvOffersBucket)
+		return err
 	})
 	return ids, err
 }
 
-func (s *Store) Upgrade() error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		var err error
-		version := 0
-		bucket := tx.Bucket(metaBucket)
-		if bucket == nil {
-			_, err = tx.CreateBucketIfNotExists(metaBucket)
-			if err != nil {
-				return err
-			}
-		} else {
-			version, err = s.getVersion(tx)
-			if err != nil {
-				return err
-			}
-		}
-		if version == 0 {
-			fmt.Printf("upgrading store to version 1\n")
-			_, err := tx.CreateBucketIfNotExists(offersBucket)
-			if err != nil {
-				return err
-			}
-			version = 1
-		}
-		if version == 1 {
-			fmt.Printf("upgrading store to version 2\n")
-			_, err = tx.CreateBucketIfNotExists(deletedBucket)
-			if err != nil {
-				return err
-			}
-			_, err = tx.CreateBucketIfNotExists(deletedKeysBucket)
-			if err != nil {
-				return err
-			}
-			version = 2
-		}
-		return s.setVersion(tx, version)
-	})
-}
-
 func (s *Store) Size() int {
 	n := 0
-	s.db.View(func(tx *bolt.Tx) error {
-		n = tx.Bucket(offersBucket).Stats().KeyN
-		return nil
+	s.db.View(func() error {
+		keys, err := s.db.List(kvOffersBucket)
+		if err != nil {
+			n = len(keys)
+		}
+		return err
 	})
 	return n
 }
