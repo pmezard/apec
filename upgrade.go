@@ -14,22 +14,6 @@ var (
 	upgradeCmd = app.Command("upgrade", "upgrade dataset schema")
 )
 
-func upgradeGeocoder(dir string) error {
-	seen := false
-	log := func(s string) {
-		if !seen {
-			fmt.Printf("upgrading geocoder store\n")
-			seen = true
-		}
-		fmt.Print("  " + s)
-	}
-	_, err := NewCache(dir, log)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func upgradeBoltToKV(path string) error {
 	boltStore, err := attic.OpenStore(path)
 	if err != nil {
@@ -109,6 +93,41 @@ func upgradeBoltToKV(path string) error {
 	return nil
 }
 
+func upgradeGeocoderBoltToKv(path string) error {
+	boltCache, err := attic.NewBoltCache(path, nil)
+	if err != nil {
+		return err
+	}
+	defer boltCache.Close()
+
+	tmpDir, err := ioutil.TempDir(filepath.Dir(path), "geo-")
+	if err != nil {
+		return err
+	}
+	kvCache, err := OpenCache(tmpDir)
+	if err != nil {
+		return err
+	}
+	defer kvCache.Close()
+
+	i := 0
+	err = boltCache.ForEach(func(k, v []byte) error {
+		i++
+		if (i % 500) == 0 {
+			fmt.Printf("%d geocoder entries migrated\n", i)
+		}
+		return kvCache.Put(string(k), v)
+	})
+	if err != nil {
+		return err
+	}
+	err = kvCache.Close()
+	if err != nil {
+		return err
+	}
+	return boltCache.Close()
+}
+
 func upgrade(cfg *Config) error {
 	storeDir := cfg.Store()
 	st, err := os.Stat(storeDir)
@@ -121,5 +140,16 @@ func upgrade(cfg *Config) error {
 			return err
 		}
 	}
-	return upgradeGeocoder(cfg.Geocoder())
+	st, err = os.Stat(cfg.Geocoder())
+	if err != nil {
+		return err
+	}
+	if !st.IsDir() {
+		fmt.Println("migrating geocoder to kv")
+		err := upgradeGeocoderBoltToKv(cfg.Geocoder())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
