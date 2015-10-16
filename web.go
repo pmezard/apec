@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/blevesearch/bleve"
 )
@@ -43,8 +44,10 @@ func (s sortedDatedOffers) Less(i, j int) bool {
 }
 
 func formatOffers(templ *template.Template, store *Store, datedOffers []datedOffer,
-	query string, w http.ResponseWriter, r *http.Request) error {
+	query string, searchDuration time.Duration, w http.ResponseWriter,
+	r *http.Request) error {
 
+	start := time.Now()
 	offers := []*offerData{}
 	maxDisplayed := 1000
 	sort.Sort(sortedDatedOffers(datedOffers))
@@ -84,16 +87,22 @@ func formatOffers(templ *template.Template, store *Store, datedOffers []datedOff
 			Location: offer.Location,
 		})
 	}
+	end := time.Now()
+	second := float64(time.Second)
 	data := struct {
-		Offers    []*offerData
-		Displayed int
-		Total     int
-		Query     string
+		Offers            []*offerData
+		Displayed         int
+		Total             int
+		Query             string
+		SearchDuration    string
+		RenderingDuration string
 	}{
-		Offers:    offers,
-		Displayed: len(offers),
-		Total:     len(datedOffers),
-		Query:     query,
+		Offers:            offers,
+		Displayed:         len(offers),
+		Total:             len(datedOffers),
+		Query:             query,
+		SearchDuration:    fmt.Sprintf("%0.3f", float64(searchDuration)/second),
+		RenderingDuration: fmt.Sprintf("%0.3f", float64(end.Sub(start))/second),
 	}
 	h := w.Header()
 	h.Set("Content-Type", "text/html")
@@ -182,16 +191,18 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	query := values.Get("q")
 	var datedOffers []datedOffer
 	prefix := "loc:"
+	start := time.Now()
 	if strings.HasPrefix(query, prefix) {
 		datedOffers, err = findOffersFromLocation(query[len(prefix):], spatial, geocoder)
 	} else {
 		datedOffers, err = findOffersFromText(index, query)
 	}
+	end := time.Now()
 	log.Printf("query '%s' returned %d entries", query, len(datedOffers))
 	if err != nil {
 		return err
 	}
-	return formatOffers(templ, store, datedOffers, query, w, r)
+	return formatOffers(templ, store, datedOffers, query, end.Sub(start), w, r)
 }
 
 func handleQuery(templ *template.Template, store *Store, index bleve.Index,

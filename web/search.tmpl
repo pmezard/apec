@@ -7,7 +7,8 @@
 	<form action="" method="get">
 		Query: <input type="text" name="q" value="{{.Query}}"> <input type="submit" value="Submit">
 	</form> 
-	<div>{{.Displayed}}/{{.Total}} offers</div><br/>
+	<div>{{.Displayed}}/{{.Total}} offers, search: {{.SearchDuration}}, rendering: {{.RenderingDuration}}<br/>
+	</div>
 	{{range .Offers}}
 	<div>
 		<div>{{.Date}} {{.Account}} ({{.Location}}) <a href="{{.URL}}">{{.Title}}</a> {{.Salary}}</div>
