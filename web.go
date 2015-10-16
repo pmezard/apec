@@ -204,6 +204,14 @@ func handleQuery(templ *template.Template, store *Store, index bleve.Index,
 	}
 }
 
+func enforcePost(rq *http.Request, w http.ResponseWriter) bool {
+	if rq.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return true
+	}
+	return false
+}
+
 var (
 	webCmd  = app.Command("web", "APEC web frontend")
 	webHttp = webCmd.Flag("http", "http server address").Default(":8081").String()
@@ -246,6 +254,9 @@ func web(cfg *Config) error {
 		handleQuery(templ, store, index, spatial, geocoder, w, r)
 	})
 	http.HandleFunc("/sync", func(w http.ResponseWriter, r *http.Request) {
+		if enforcePost(r, w) {
+			return
+		}
 		indexer.Sync()
 		spatialIndexer.Sync()
 		w.Write([]byte("OK"))
@@ -254,6 +265,9 @@ func web(cfg *Config) error {
 	crawlingLock := sync.Mutex{}
 	crawling := false
 	http.HandleFunc("/crawl", func(w http.ResponseWriter, r *http.Request) {
+		if enforcePost(r, w) {
+			return
+		}
 		crawlingLock.Lock()
 		defer crawlingLock.Unlock()
 		if !crawling {
