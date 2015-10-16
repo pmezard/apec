@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -47,63 +48,88 @@ type DBContent struct {
 	Prefixes []PrefixContent
 }
 
+func checkView(t *testing.T, db *KVDB, action func(tx *Tx) error) {
+	err := db.View(action)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func checkUpdate(t *testing.T, db *KVDB, action func(tx *Tx) error) {
+	err := db.Update(action)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func checkKVDBPut(t *testing.T, db *KVDB, parts ...[]byte) {
-	if len(parts)%3 != 0 {
-		t.Fatalf("parts must be a sequence of prefix, key, value")
-	}
-	for i := 0; i < len(parts)/3; i++ {
-		prefix := parts[3*i]
-		key := parts[3*i+1]
-		value := parts[3*i+2]
-		err := db.Put(prefix, key, value)
-		if err != nil {
-			t.Fatalf("failed to put %s:%s:%s: %s", string(prefix), string(key),
-				string(value), err)
+	checkUpdate(t, db, func(tx *Tx) error {
+		if len(parts)%3 != 0 {
+			return fmt.Errorf("parts must be a sequence of prefix, key, value")
 		}
-	}
+		for i := 0; i < len(parts)/3; i++ {
+			prefix := parts[3*i]
+			key := parts[3*i+1]
+			value := parts[3*i+2]
+			err := tx.Put(prefix, key, value)
+			if err != nil {
+				return fmt.Errorf("failed to put %s:%s:%s: %s",
+					string(prefix), string(key), string(value), err)
+			}
+		}
+		return nil
+	})
 }
 
 func checkKVDBDel(t *testing.T, db *KVDB, parts ...[]byte) {
-	if len(parts)%2 != 0 {
-		t.Fatalf("parts must be a sequence of prefix, key")
-	}
-	for i := 0; i < len(parts)/2; i++ {
-		prefix := parts[2*i]
-		key := parts[2*i+1]
-		err := db.Delete(prefix, key)
-		if err != nil {
-			t.Fatalf("failed to delete %s:%s: %s", string(prefix), string(key), err)
+	checkUpdate(t, db, func(tx *Tx) error {
+		if len(parts)%2 != 0 {
+			return fmt.Errorf("parts must be a sequence of prefix, key")
 		}
-	}
+		for i := 0; i < len(parts)/2; i++ {
+			prefix := parts[2*i]
+			key := parts[2*i+1]
+			err := tx.Delete(prefix, key)
+			if err != nil {
+				return fmt.Errorf("failed to delete %s:%s: %s",
+					string(prefix), string(key), err)
+			}
+		}
+		return nil
+	})
 }
 
 func checkKVDBContent(t *testing.T, db *KVDB, content DBContent) {
-	for _, prefix := range content.Prefixes {
-		name := string(prefix.Name)
-		keys, err := db.List(prefix.Name)
-		if err != nil {
-			t.Fatalf("could not list keys for %s: %s", name, err)
-		}
-		got := strings.Join(keys, ",")
-		parts := []string{}
-		for _, k := range prefix.KV {
-			parts = append(parts, string(k.Key))
-		}
-		wanted := strings.Join(parts, ",")
-		if got != wanted {
-			t.Fatalf("%s keys mismatch: %q != %q", name, got, wanted)
-		}
-		for _, k := range prefix.KV {
-			v, err := db.Get(prefix.Name, k.Key)
+	checkView(t, db, func(tx *Tx) error {
+		for _, prefix := range content.Prefixes {
+			name := string(prefix.Name)
+			keys, err := tx.List(prefix.Name)
 			if err != nil {
-				t.Fatalf("failed to retrieve %s:%s: %s", name, string(k.Key), err)
+				return fmt.Errorf("could not list keys for %s: %s", name, err)
 			}
-			if !bytes.Equal(v, k.Value) {
-				t.Fatalf("content mismatch for %s:%s: %q != %q", name, string(k.Key),
-					string(v), string(k.Value))
+			got := strings.Join(keys, ",")
+			parts := []string{}
+			for _, k := range prefix.KV {
+				parts = append(parts, string(k.Key))
+			}
+			wanted := strings.Join(parts, ",")
+			if got != wanted {
+				return fmt.Errorf("%s keys mismatch: %q != %q", name, got, wanted)
+			}
+			for _, k := range prefix.KV {
+				v, err := tx.Get(prefix.Name, k.Key)
+				if err != nil {
+					return fmt.Errorf("failed to retrieve %s:%s: %s", name,
+						string(k.Key), err)
+				}
+				if !bytes.Equal(v, k.Value) {
+					return fmt.Errorf("content mismatch for %s:%s: %q != %q",
+						name, string(k.Key), string(v), string(k.Value))
+				}
 			}
 		}
-	}
+		return nil
+	})
 }
 
 func testCRUD(t *testing.T, db *KVDB) {
@@ -116,28 +142,37 @@ func testCRUD(t *testing.T, db *KVDB) {
 	v3 := []byte("some value 3")
 
 	// Empty db is empty
-	keys, err := db.List(p1)
-	if err != nil {
-		t.Fatalf("cannot list empty prefix: %s", err)
-	}
-	if len(keys) != 0 {
-		t.Fatalf("empty db has keys: %+v", keys)
-	}
+	checkView(t, db, func(tx *Tx) error {
+		keys, err := tx.List(p1)
+		if err != nil {
+			t.Fatalf("cannot list empty prefix: %s", err)
+		}
+		if len(keys) != 0 {
+			t.Fatalf("empty db has keys: %+v", keys)
+		}
+		return nil
+	})
 
 	// Retrieving missing value returns nil
-	v, err := db.Get(p1, k1)
-	if err != nil {
-		t.Fatalf("retrieving missing value fails: %s", err)
-	}
-	if v != nil {
-		t.Fatalf("missing value must be nil not %+v", v)
-	}
+	checkView(t, db, func(tx *Tx) error {
+		v, err := tx.Get(p1, k1)
+		if err != nil {
+			t.Fatalf("retrieving missing value fails: %s", err)
+		}
+		if v != nil {
+			t.Fatalf("missing value must be nil not %+v", v)
+		}
+		return nil
+	})
 
 	// Deleting missing value is fine
-	err = db.Delete(p1, k1)
-	if err != nil {
-		t.Fatalf("deleting missing value failed with: %s", err)
-	}
+	checkUpdate(t, db, func(tx *Tx) error {
+		err := tx.Delete(p1, k1)
+		if err != nil {
+			t.Fatalf("deleting missing value failed with: %s", err)
+		}
+		return nil
+	})
 
 	// Add 3 values in 2 different tables
 	checkKVDBPut(t, db,
@@ -225,29 +260,38 @@ func TestKVDBInc(t *testing.T) {
 
 	// Check it actually increments
 	p := []byte("prefix")
-	n, err := db.Inc(p, 2)
-	if err != nil {
-		t.Fatalf("could not increment from nothing: %s", err)
-	}
-	if n != 2 {
-		t.Fatalf("unexpected increment: %d != 2", n)
-	}
+	checkUpdate(t, db, func(tx *Tx) error {
+		n, err := tx.Inc(p, 2)
+		if err != nil {
+			t.Fatalf("could not increment from nothing: %s", err)
+		}
+		if n != 2 {
+			t.Fatalf("unexpected increment: %d != 2", n)
+		}
+		return nil
+	})
 
 	// Again
-	n, err = db.Inc(p, 1)
-	if err != nil {
-		t.Fatalf("could not increment from 2: %s", err)
-	}
-	if n != 3 {
-		t.Fatalf("increment returned %d, expected 3", n)
-	}
+	checkUpdate(t, db, func(tx *Tx) error {
+		n, err := tx.Inc(p, 1)
+		if err != nil {
+			t.Fatalf("could not increment from 2: %s", err)
+		}
+		if n != 3 {
+			t.Fatalf("increment returned %d, expected 3", n)
+		}
+		return nil
+	})
 
 	// Check it does not mess with key enumerations
-	keys, err := db.List(p)
-	if err != nil {
-		t.Fatalf("could not list keys: %s", err)
-	}
-	if len(keys) != 0 {
-		t.Fatalf("increments have some effect on regular keys: %+v", keys)
-	}
+	checkView(t, db, func(tx *Tx) error {
+		keys, err := tx.List(p)
+		if err != nil {
+			t.Fatalf("could not list keys: %s", err)
+		}
+		if len(keys) != 0 {
+			t.Fatalf("increments have some effect on regular keys: %+v", keys)
+		}
+		return nil
+	})
 }
