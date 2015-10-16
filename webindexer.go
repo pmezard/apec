@@ -121,11 +121,11 @@ func (idx *Indexer) resetQueue() error {
 	}
 	added, removed := diffIds(stored, indexed)
 
-	for _, id := range added {
-		ops = append(ops, Queued{Id: id, Op: AddOp})
-	}
 	for _, id := range removed {
 		ops = append(ops, Queued{Id: id, Op: RemoveOp})
+	}
+	for _, id := range added {
+		ops = append(ops, Queued{Id: id, Op: AddOp})
 	}
 	log.Printf("queuing %d additions, %d removals", len(added), len(removed))
 
