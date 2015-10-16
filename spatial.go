@@ -27,6 +27,9 @@ func getOfferLocation(store *Store, geocoder *Geocoder, id string) (*OfferLoc, e
 	if err != nil {
 		return nil, err
 	}
+	if offer == nil {
+		return nil, nil
+	}
 	_, loc, err := geocodeOffer(geocoder, offer, true)
 	if err != nil {
 		return nil, err

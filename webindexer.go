@@ -160,13 +160,15 @@ func (idx *Indexer) indexSome() error {
 			if err != nil {
 				return err
 			}
-			_, _, err = geocodeOffer(idx.geocoder, offer, true)
-			if err != nil {
-				return err
-			}
-			err = idx.index.Index(offer.Id, offer)
-			if err != nil {
-				return err
+			if offer != nil {
+				_, _, err = geocodeOffer(idx.geocoder, offer, true)
+				if err != nil {
+					return err
+				}
+				err = idx.index.Index(offer.Id, offer)
+				if err != nil {
+					return err
+				}
 			}
 		} else if q.Op == RemoveOp {
 			log.Printf("deleting %s", q.Id)

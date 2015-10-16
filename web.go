@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -10,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/blevesearch/bleve"
@@ -55,18 +55,11 @@ func formatOffers(templ *template.Template, store *Store, datedOffers []datedOff
 		if len(offers) >= maxDisplayed {
 			break
 		}
-		data, err := store.Get(doc.Id)
+		offer, err := getStoreOffer(store, doc.Id)
 		if err != nil {
 			return err
 		}
-		o := &jsonOffer{}
-		err = json.Unmarshal(data, o)
-		if err != nil {
-			return err
-		}
-		offer, err := convertOffer(o)
-		if err != nil {
-			fmt.Printf("error: cannot convert offer: %s\n", err)
+		if offer == nil {
 			continue
 		}
 		salary := ""
@@ -255,6 +248,31 @@ func web(cfg *Config) error {
 	http.HandleFunc("/sync", func(w http.ResponseWriter, r *http.Request) {
 		indexer.Sync()
 		spatialIndexer.Sync()
+		w.Write([]byte("OK"))
+	})
+
+	crawlingLock := sync.Mutex{}
+	crawling := false
+	http.HandleFunc("/crawl", func(w http.ResponseWriter, r *http.Request) {
+		crawlingLock.Lock()
+		defer crawlingLock.Unlock()
+		if !crawling {
+			crawling = true
+			go func() {
+				defer func() {
+					crawlingLock.Lock()
+					crawling = false
+					crawlingLock.Unlock()
+				}()
+				err := crawl(store, 0, nil)
+				if err != nil {
+					log.Printf("error: crawling failed with: %s", err)
+					return
+				}
+				indexer.Sync()
+				spatialIndexer.Sync()
+			}()
+		}
 		w.Write([]byte("OK"))
 	})
 	return http.ListenAndServe(*webHttp, nil)

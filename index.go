@@ -128,6 +128,9 @@ func getStoreOffer(store *Store, id string) (*Offer, error) {
 	if err != nil {
 		return nil, err
 	}
+	if data == nil {
+		return nil, nil
+	}
 	js := &jsonOffer{}
 	err = json.Unmarshal(data, js)
 	if err != nil {
