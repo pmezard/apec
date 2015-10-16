@@ -227,7 +227,7 @@ func web(cfg *Config) error {
 	}
 	geocoder, err := NewGeocoder(cfg.GeocodingKey(), cfg.Geocoder())
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot open geocoder: %s", err)
 	}
 	spatial := NewSpatialIndex()
 	queue, err := OpenIndexQueue(cfg.Queue())
