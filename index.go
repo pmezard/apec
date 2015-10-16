@@ -210,10 +210,6 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	offer.Dynamic = false
 	offer.AddFieldMappingsAt("html", htmlFr)
 	offer.AddFieldMappingsAt("title", textFr)
-	offer.AddFieldMappingsAt("city", textAll)
-	offer.AddFieldMappingsAt("county", textAll)
-	offer.AddFieldMappingsAt("state", textAll)
-	offer.AddFieldMappingsAt("country", textAll)
 	offer.AddFieldMappingsAt("date", date)
 
 	m.AddDocumentMapping("offer", offer)
