@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -53,7 +52,6 @@ func TestEmptyQueue(t *testing.T) {
 }
 
 func checkFetched(t *testing.T, queue *IndexQueue, wanted []Queued) {
-	fmt.Println(wanted)
 	for i := 0; i < len(wanted)+1; i++ {
 		queued, err := queue.FetchMany(i)
 		if err != nil {
