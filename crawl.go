@@ -154,8 +154,13 @@ func getOffer(id string) ([]byte, error) {
 	return ioutil.ReadAll(output)
 }
 
+// enumerateOffers search offers satisfying the minSalary and locations
+// constraints and repeatedly calls callback with slices of offers identifiers.
+// The enumeration is not atomic, there is no guarantee a value is returned
+// only once.
 func enumerateOffers(minSalary int, locations []int, callback func([]string) error) error {
 	start := 0
+	overlap := 5
 	count := 250
 	delay := 5 * time.Second
 	for ; ; time.Sleep(delay) {
@@ -164,7 +169,7 @@ func enumerateOffers(minSalary int, locations []int, callback func([]string) err
 		if err != nil {
 			return err
 		}
-		start += count
+		start += (count - overlap)
 		err = callback(ids)
 		if err != nil {
 			return err
@@ -214,9 +219,11 @@ func crawl(store *Store, minSalary int, locations []int) error {
 		pending := []string{}
 		err := enumerateOffers(minSalary, locations, func(ids []string) error {
 			for _, id := range ids {
+				if !seen[id] {
+					pending = append(pending, id)
+				}
 				seen[id] = true
 			}
-			pending = append(pending, ids...)
 			select {
 			case <-stopListing:
 				return fmt.Errorf("offer enumeration was interrupted")
