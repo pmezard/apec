@@ -87,3 +87,35 @@ func TestOfferDeletion(t *testing.T) {
 		t.Fatalf("deleted data does not match data: %x != %x", deletedData, data)
 	}
 }
+
+func TestOfferSize(t *testing.T) {
+	store := openTempStore(t)
+	defer closeAndDeleteStore(t, store)
+
+	now := time.Now()
+	data := []byte("dummy")
+	id := "id1"
+
+	size := store.Size()
+	if size != 0 {
+		t.Fatalf("empty store has %d items", size)
+	}
+
+	err := store.Put(id, data)
+	if err != nil {
+		t.Fatalf("could not write entry: %s", err)
+	}
+	size = store.Size()
+	if size != 1 {
+		t.Fatalf("store should have 1 element, got %d", size)
+	}
+
+	err = store.Delete(id, now)
+	if err != nil {
+		t.Fatalf("could not delete %s: %s", id, err)
+	}
+	size = store.Size()
+	if size != 0 {
+		t.Fatalf("empty store has %d items", size)
+	}
+}

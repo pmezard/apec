@@ -205,7 +205,7 @@ func (s *Store) Size() int {
 	n := 0
 	s.db.View(func(tx *Tx) error {
 		keys, err := tx.List(kvOffersBucket)
-		if err != nil {
+		if err == nil {
 			n = len(keys)
 		}
 		return err
