@@ -22,18 +22,7 @@ var (
 	locExtent = [2]float64{1e-6, 1e-6}
 )
 
-func getOfferLocation(store *Store, geocoder *Geocoder, id string) (*OfferLoc, error) {
-	offer, err := getStoreOffer(store, id)
-	if err != nil {
-		return nil, err
-	}
-	if offer == nil {
-		return nil, nil
-	}
-	_, loc, err := geocodeOffer(geocoder, offer, true)
-	if err != nil {
-		return nil, err
-	}
+func makeOfferLocation(id string, date time.Time, loc *Location) (*OfferLoc, error) {
 	if loc == nil || len(loc.Results) == 0 || loc.Results[0].Geometry == nil {
 		return nil, nil
 	}
@@ -46,9 +35,24 @@ func getOfferLocation(store *Store, geocoder *Geocoder, id string) (*OfferLoc, e
 	}
 	return &OfferLoc{
 		Id:   id,
-		Date: offer.Date,
+		Date: date,
 		Loc:  rect,
 	}, nil
+}
+
+func getOfferLocation(store *Store, geocoder *Geocoder, id string) (*OfferLoc, error) {
+	offer, err := getStoreOffer(store, id)
+	if err != nil {
+		return nil, err
+	}
+	if offer == nil {
+		return nil, nil
+	}
+	_, loc, err := geocodeOffer(geocoder, offer, true)
+	if err != nil {
+		return nil, err
+	}
+	return makeOfferLocation(offer.Id, offer.Date, loc)
 }
 
 type SpatialIndex struct {

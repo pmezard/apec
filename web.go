@@ -212,6 +212,109 @@ func enforcePost(rq *http.Request, w http.ResponseWriter) bool {
 	return false
 }
 
+type GeocodingHandler struct {
+	geocoder *Geocoder
+	store    *Store
+	spatial  *SpatialIndex
+	lock     sync.Mutex
+	running  bool
+}
+
+func NewGeocodingHandler(store *Store, geocoder *Geocoder,
+	spatial *SpatialIndex) *GeocodingHandler {
+
+	return &GeocodingHandler{
+		store:    store,
+		geocoder: geocoder,
+		spatial:  spatial,
+	}
+}
+
+func (h *GeocodingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if enforcePost(r, w) {
+		return
+	}
+	h.Geocode()
+	w.Write([]byte("OK"))
+}
+
+func (h *GeocodingHandler) Geocode() {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+	if h.running {
+		return
+	}
+	h.running = true
+	go func() {
+		defer func() {
+			h.lock.Lock()
+			defer h.lock.Unlock()
+			h.running = false
+		}()
+		log.Println("geocoding started")
+		err := h.geocode(500)
+		if err != nil {
+			log.Printf("error: geocoding failed: %s", err)
+		}
+		log.Println("geocoding stopped")
+	}()
+}
+
+func (h *GeocodingHandler) geocode(minQuota int) error {
+	ids, err := h.store.List()
+	if err != nil {
+		return err
+	}
+	rejected := 0
+	for i, id := range ids {
+		offer, err := getStoreOffer(h.store, id)
+		if err != nil {
+			return err
+		}
+		if offer == nil {
+			continue
+		}
+		q, loc, err := geocodeOffer(h.geocoder, offer, rejected > 0)
+		if err != nil {
+			log.Printf("error: geocoding %s: %s\n", q, err)
+			if err != QuotaError {
+				return err
+			}
+			rejected += 1
+		} else if loc == nil {
+			rejected += 1
+		} else if !loc.Cached {
+			result := "no result"
+			if len(loc.Results) > 0 {
+				result = loc.Results[0].Component.String()
+			}
+			prefix := fmt.Sprintf("geocoding %d/%d %s => %s => %s", i+1, len(ids),
+				offer.Location, q, result)
+			if !loc.Cached {
+				offerLoc, err := makeOfferLocation(offer.Id, offer.Date, loc)
+				if err != nil {
+					log.Printf("error: cannot make offer location for %s: %s", id, err)
+				} else if offerLoc != nil {
+					h.spatial.Remove(offer.Id)
+					h.spatial.Add(offerLoc)
+				}
+				log.Printf("%s (quota: %d/%d)\n", prefix, loc.Rate.Remaining,
+					loc.Rate.Limit)
+				if loc.Rate.Remaining <= minQuota {
+					// Try to preserve quota for test purpose. This is not
+					// perfect as it consumes one geocoding token per function
+					// call. I do not know how to query quota directly yet.
+					rejected += 1
+				}
+				time.Sleep(1 * time.Second)
+			} else {
+				log.Printf("%s\n", prefix)
+			}
+		}
+	}
+	return nil
+}
+
 var (
 	webCmd  = app.Command("web", "APEC web frontend")
 	webHttp = webCmd.Flag("http", "http server address").Default(":8081").String()
@@ -250,6 +353,9 @@ func web(cfg *Config) error {
 	defer spatialIndexer.Close()
 	spatialIndexer.Sync()
 
+	geocodingHandler := NewGeocodingHandler(store, geocoder, spatial)
+	geocodingHandler.Geocode()
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		handleQuery(templ, store, index, spatial, geocoder, w, r)
 	})
@@ -285,9 +391,11 @@ func web(cfg *Config) error {
 				}
 				indexer.Sync()
 				spatialIndexer.Sync()
+				geocodingHandler.Geocode()
 			}()
 		}
 		w.Write([]byte("OK"))
 	})
+	http.Handle("/geocode", geocodingHandler)
 	return http.ListenAndServe(*webHttp, nil)
 }
