@@ -93,7 +93,7 @@ func checkDelete(t *testing.T, queue *IndexQueue, count int, wanted []Queued) {
 	size := queue.Size()
 	err := queue.DeleteMany(count)
 	if err != nil {
-		t.Fatalf("cannot delete items: %s", count, err)
+		t.Fatalf("cannot delete %d items: %s", count, err)
 	}
 	size -= count
 	if size < 0 {

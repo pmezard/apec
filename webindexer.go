@@ -68,7 +68,7 @@ func (idx *Indexer) dispatch() {
 			log.Printf("indexing documents, %d updates remaining", idx.queue.Size())
 			err := idx.indexSome()
 			if err != nil {
-				log.Println("error: indexation failed: %s", err)
+				log.Printf("error: indexation failed: %s", err)
 			}
 			log.Printf("indexation done")
 		case done := <-idx.stop:
