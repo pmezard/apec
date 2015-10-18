@@ -184,13 +184,16 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	} else {
 		datedOffers, err = findOffersFromText(index, query)
 	}
-	end := time.Now()
-	log.Printf("query '%s' returned %d entries in %.3fs", query, len(datedOffers),
-		float64(end.Sub(start))/float64(time.Second))
+	searchDuration := time.Now().Sub(start)
 	if err != nil {
 		return err
 	}
-	return formatOffers(templ, store, datedOffers, query, end.Sub(start), w, r)
+	err = formatOffers(templ, store, datedOffers, query, searchDuration, w, r)
+	formatDuration := time.Now().Sub(start) - searchDuration
+	log.Printf("query '%s' returned %d entries in %.3fs, formatted in %.3fs",
+		query, len(datedOffers), float64(searchDuration)/float64(time.Second),
+		float64(formatDuration)/float64(time.Second))
+	return err
 }
 
 func handleQuery(templ *template.Template, store *Store, index bleve.Index,
