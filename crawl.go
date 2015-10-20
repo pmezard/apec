@@ -11,6 +11,16 @@ import (
 	"time"
 )
 
+type HTTPError struct {
+	URL    string
+	Code   int
+	Status string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("got %s fetching %s", e.Status, e.URL)
+}
+
 func doHTTP(url string, input io.Reader) (io.ReadCloser, error) {
 	method := "GET"
 	if input != nil {
@@ -30,7 +40,12 @@ func doHTTP(url string, input io.Reader) (io.ReadCloser, error) {
 	}
 	if rsp.StatusCode != http.StatusOK {
 		rsp.Body.Close()
-		return nil, fmt.Errorf("got %s fetching %s", rsp.Status, url)
+		err := &HTTPError{
+			URL:    url,
+			Code:   rsp.StatusCode,
+			Status: rsp.Status,
+		}
+		return nil, err
 	}
 	return rsp.Body, nil
 }
@@ -43,6 +58,9 @@ func tryHTTP(url string, baseDelay time.Duration, loops int,
 		output, err := doHTTP(url, input)
 		if err == nil {
 			return output, nil
+		}
+		if h, ok := err.(*HTTPError); ok && h.Code == http.StatusNotFound {
+			return nil, err
 		}
 		fmt.Printf("fetching failed with: %s\n", err)
 		loops -= 1
@@ -148,6 +166,9 @@ func getOffer(id string) ([]byte, error) {
 	u := "https://cadres.apec.fr/cms/webservices/offre/public?numeroOffre=" + id
 	output, err := tryHTTP(u, time.Second, 5, nil)
 	if err != nil {
+		if h, ok := err.(*HTTPError); ok && h.Code == http.StatusNotFound {
+			return nil, nil
+		}
 		return nil, err
 	}
 	defer output.Close()
@@ -197,6 +218,10 @@ func crawlOffers(store *Store, ids []string) (int, error) {
 			return added, err
 		}
 		time.Sleep(time.Second)
+		if data == nil {
+			fmt.Printf("could not find %s\n", id)
+			continue
+		}
 		err = store.Put(id, data)
 		if err != nil {
 			return added, err
