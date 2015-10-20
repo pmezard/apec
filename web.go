@@ -318,6 +318,14 @@ func (h *GeocodingHandler) geocode(minQuota int) error {
 	return nil
 }
 
+func handleChanges(store *Store, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	err := printChanges(w, store, true)
+	if err != nil {
+		log.Printf("error: %s", err)
+	}
+}
+
 var (
 	webCmd  = app.Command("web", "APEC web frontend")
 	webHttp = webCmd.Flag("http", "http server address").Default(":8081").String()
@@ -361,6 +369,9 @@ func web(cfg *Config) error {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		handleQuery(templ, store, index, spatial, geocoder, w, r)
+	})
+	http.HandleFunc("/changes", func(w http.ResponseWriter, r *http.Request) {
+		handleChanges(store, w, r)
 	})
 	http.HandleFunc("/sync", func(w http.ResponseWriter, r *http.Request) {
 		if enforcePost(r, w) {

@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -38,11 +40,7 @@ var (
 	changesCmd = app.Command("changes", "print offers changes per day")
 )
 
-func changesFn(cfg *Config) error {
-	store, err := OpenStore(cfg.Store())
-	if err != nil {
-		return err
-	}
+func printChanges(w io.Writer, store *Store, reverse bool) error {
 	changes := map[string]struct {
 		Added   int
 		Removed int
@@ -92,10 +90,24 @@ func changesFn(cfg *Config) error {
 		dates = append(dates, k)
 	}
 	sort.Strings(dates)
+	if reverse {
+		for i := 0; i < len(dates)/2; i++ {
+			j := len(dates) - i - 1
+			dates[i], dates[j] = dates[j], dates[i]
+		}
+	}
 
 	for _, d := range dates {
 		ch := changes[d]
-		fmt.Printf("%s: +%d, -%d offers\n", d, ch.Added, ch.Removed)
+		fmt.Fprintf(w, "%s: +%d, -%d offers\n", d, ch.Added, ch.Removed)
 	}
 	return nil
+}
+
+func changesFn(cfg *Config) error {
+	store, err := OpenStore(cfg.Store())
+	if err != nil {
+		return err
+	}
+	return printChanges(os.Stdout, store, false)
 }
