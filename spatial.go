@@ -56,7 +56,7 @@ func getOfferLocation(store *Store, geocoder *Geocoder, id string) (*OfferLoc, e
 }
 
 type SpatialIndex struct {
-	lock  sync.Mutex
+	lock  sync.RWMutex
 	rtree *rtreego.Rtree
 	known map[string]*OfferLoc
 }
@@ -90,8 +90,8 @@ func (s *SpatialIndex) Remove(id string) {
 }
 
 func (s *SpatialIndex) List() []string {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.lock.RLock()
+	defer s.lock.RUnlock()
 	ids := make([]string, len(s.known))
 	for id := range s.known {
 		ids = append(ids, id)
@@ -110,8 +110,8 @@ func makeGeoRect(lat, lon, radius float64) (rtreego.Rect, error) {
 }
 
 func (s *SpatialIndex) FindNearest(lat, lon, maxDist float64) ([]datedOffer, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.lock.RLock()
+	defer s.lock.RUnlock()
 
 	query, err := makeGeoRect(lat, lon, maxDist)
 	if err != nil {
