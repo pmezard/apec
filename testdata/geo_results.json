@@ -1,0 +1,631 @@
+{
+    "documentation": "http://geocoder.opencagedata.com/api.html",
+    "licenses": [
+        {
+            "name": "CC-BY-SA",
+            "url": "http://creativecommons.org/licenses/by-sa/3.0/"
+        },
+        {
+            "name": "ODbL",
+            "url": "http://opendatacommons.org/licenses/odbl/summary/"
+        }
+    ],
+    "rate": {
+        "limit": 2500,
+        "remaining": 2498,
+        "reset": 1443744000
+    },
+    "results": [
+        {
+            "annotations": {
+                "DMS": {
+                    "lat": "48\u00b0 51' 23.42016'' N",
+                    "lng": "2\u00b0 21' 7.68024'' E"
+                },
+                "MGRS": "31UDQ5247711706",
+                "Maidenhead": "JN18eu25gn",
+                "Mercator": {
+                    "x": 261838.292,
+                    "y": 6218353.508
+                },
+                "OSM": {
+                    "url": "http://www.openstreetmap.org/?mlat=48.85651&mlon=2.35213#map=17/48.85651/2.35213"
+                },
+                "callingcode": 33,
+                "geohash": "u09tvw0cb8tzcp984hpk",
+                "sun": {
+                    "rise": {
+                        "apparent": 1443678600,
+                        "astronomical": 1443672300,
+                        "civil": 1443676740,
+                        "nautical": 1443674520
+                    },
+                    "set": {
+                        "apparent": 1443720540,
+                        "astronomical": 1443726900,
+                        "civil": 1443722460,
+                        "nautical": 1443724620
+                    }
+                },
+                "timezone": {
+                    "name": "Europe/Paris",
+                    "now_in_dst": 1,
+                    "offset_sec": 7200,
+                    "offset_string": 200,
+                    "short_name": "CEST"
+                },
+                "what3words": {
+                    "words": "vineyard.impose.watching"
+                }
+            },
+            "bounds": {
+                "northeast": {
+                    "lat": 48.902156,
+                    "lng": 2.4697602
+                },
+                "southwest": {
+                    "lat": 48.8155755,
+                    "lng": 2.224122
+                }
+            },
+            "components": {
+                "city": "Paris",
+                "country": "France",
+                "country_code": "fr",
+                "county": "Paris",
+                "state": "Ile-de-France"
+            },
+            "confidence": 6,
+            "formatted": "Paris, France",
+            "geometry": {
+                "lat": 48.8565056,
+                "lng": 2.3521334
+            }
+        },
+        {
+            "annotations": {
+                "DMS": {
+                    "lat": "35\u00b0 17' 31.31700'' N",
+                    "lng": "93\u00b0 43' 47.70228'' W"
+                },
+                "MGRS": "15SVV3363005673",
+                "Maidenhead": "EM35dh20jc",
+                "Mercator": {
+                    "x": -10433966.666,
+                    "y": 4178951.626
+                },
+                "OSM": {
+                    "url": "http://www.openstreetmap.org/?mlat=35.29203&mlon=-93.72992#map=17/35.29203/-93.72992"
+                },
+                "callingcode": 1,
+                "geohash": "9ym2g0eyyxsn4t1wpqbd",
+                "sun": {
+                    "rise": {
+                        "apparent": 1443701340,
+                        "astronomical": 1443696300,
+                        "civil": 1443699840,
+                        "nautical": 1443698040
+                    },
+                    "set": {
+                        "apparent": 1443743820,
+                        "astronomical": 1443662460,
+                        "civil": 1443658920,
+                        "nautical": 1443660720
+                    }
+                },
+                "timezone": {
+                    "name": "America/Chicago",
+                    "now_in_dst": 1,
+                    "offset_sec": -18000,
+                    "offset_string": -500,
+                    "short_name": "CDT"
+                },
+                "what3words": {
+                    "words": "earmuffs.revealing.glues"
+                }
+            },
+            "bounds": {
+                "northeast": {
+                    "lat": 35.3065029,
+                    "lng": -93.6750829
+                },
+                "southwest": {
+                    "lat": 35.26725,
+                    "lng": -93.7618069
+                }
+            },
+            "components": {
+                "city": "Paris",
+                "country": "United States of America",
+                "country_code": "us",
+                "county": "Logan County",
+                "state": "Arkansas"
+            },
+            "confidence": 7,
+            "formatted": "Paris, Logan County, Arkansas, United States of America",
+            "geometry": {
+                "lat": 35.2920325,
+                "lng": -93.7299173
+            }
+        },
+        {
+            "annotations": {
+                "DMS": {
+                    "lat": "33\u00b0 39' 42.46632'' N",
+                    "lng": "95\u00b0 33' 19.84680'' W"
+                },
+                "MGRS": "15STT6304227587",
+                "Maidenhead": "EM23fp38it",
+                "Mercator": {
+                    "x": -10637191.05,
+                    "y": 3959796.301
+                },
+                "OSM": {
+                    "url": "http://www.openstreetmap.org/?mlat=33.66180&mlon=-95.55551#map=17/33.66180/-95.55551"
+                },
+                "callingcode": 1,
+                "geohash": "9vup3xfw5jt7b6ufkrm9",
+                "sun": {
+                    "rise": {
+                        "apparent": 1443701760,
+                        "astronomical": 1443696780,
+                        "civil": 1443700260,
+                        "nautical": 1443698520
+                    },
+                    "set": {
+                        "apparent": 1443657900,
+                        "astronomical": 1443662820,
+                        "civil": 1443659400,
+                        "nautical": 1443661080
+                    }
+                },
+                "timezone": {
+                    "name": "America/Chicago",
+                    "now_in_dst": 1,
+                    "offset_sec": -18000,
+                    "offset_string": -500,
+                    "short_name": "CDT"
+                },
+                "what3words": {
+                    "words": "done.velocity.composers"
+                }
+            },
+            "bounds": {
+                "northeast": {
+                    "lat": 33.738378,
+                    "lng": -95.4354549
+                },
+                "southwest": {
+                    "lat": 33.611853,
+                    "lng": -95.6279279
+                }
+            },
+            "components": {
+                "city": "Paris",
+                "country": "United States of America",
+                "country_code": "us",
+                "county": "Lamar County",
+                "state": "Texas"
+            },
+            "confidence": 5,
+            "formatted": "Paris, Lamar County, Texas, United States of America",
+            "geometry": {
+                "lat": 33.6617962,
+                "lng": -95.555513
+            }
+        },
+        {
+            "annotations": {
+                "DMS": {
+                    "lat": "38\u00b0 12' 35.27532'' N",
+                    "lng": "84\u00b0 15' 10.75284'' W"
+                },
+                "MGRS": "16SGH4051332660",
+                "Maidenhead": "EM78uf90pi",
+                "Mercator": {
+                    "x": -9378999.6,
+                    "y": 4582672.954
+                },
+                "OSM": {
+                    "url": "http://www.openstreetmap.org/?mlat=38.20980&mlon=-84.25299#map=17/38.20980/-84.25299"
+                },
+                "callingcode": 1,
+                "geohash": "dnu16gbu5nex9bnuwgt5",
+                "sun": {
+                    "rise": {
+                        "apparent": 1443699120,
+                        "astronomical": 1443693840,
+                        "civil": 1443697560,
+                        "nautical": 1443695700
+                    },
+                    "set": {
+                        "apparent": 1443741480,
+                        "astronomical": 1443660360,
+                        "civil": 1443743100,
+                        "nautical": 1443658500
+                    }
+                },
+                "timezone": {
+                    "name": "America/New_York",
+                    "now_in_dst": 1,
+                    "offset_sec": -14400,
+                    "offset_string": -400,
+                    "short_name": "EDT"
+                },
+                "what3words": {
+                    "words": "exiled.affair.stuttering"
+                }
+            },
+            "bounds": {
+                "northeast": {
+                    "lat": 38.238271,
+                    "lng": -84.2320888
+                },
+                "southwest": {
+                    "lat": 38.164922,
+                    "lng": -84.3073258
+                }
+            },
+            "components": {
+                "city": "Paris",
+                "country": "United States of America",
+                "country_code": "us",
+                "county": "Bourbon County",
+                "state": "Kentucky"
+            },
+            "confidence": 7,
+            "formatted": "Paris, Bourbon County, Kentucky, United States of America",
+            "geometry": {
+                "lat": 38.2097987,
+                "lng": -84.2529869
+            }
+        },
+        {
+            "annotations": {
+                "DMS": {
+                    "lat": "36\u00b0 6' 43.20684'' N",
+                    "lng": "115\u00b0 10' 21.57924'' W"
+                },
+                "MGRS": "11SPV6446997917",
+                "Maidenhead": "DM26jc96gv",
+                "Mercator": {
+                    "x": -12820961.965,
+                    "y": 4290859.553
+                },
+                "OSM": {
+                    "url": "http://www.openstreetmap.org/?mlat=36.11200&mlon=-115.17266#map=17/36.11200/-115.17266"
+                },
+                "callingcode": 1,
+                "geohash": "9qqj7jvzdmpd4vh9t19g",
+                "sun": {
+                    "rise": {
+                        "apparent": 1443706500,
+                        "astronomical": 1443701400,
+                        "civil": 1443704940,
+                        "nautical": 1443703200
+                    },
+                    "set": {
+                        "apparent": 1443662520,
+                        "astronomical": 1443667620,
+                        "civil": 1443664080,
+                        "nautical": 1443665820
+                    }
+                },
+                "timezone": {
+                    "name": "America/Los_Angeles",
+                    "now_in_dst": 1,
+                    "offset_sec": -25200,
+                    "offset_string": -700,
+                    "short_name": "PDT"
+                },
+                "what3words": {
+                    "words": "boil.kinks.sleep"
+                }
+            },
+            "bounds": {
+                "northeast": {
+                    "lat": 36.1120519,
+                    "lng": -115.1726109
+                },
+                "southwest": {
+                    "lat": 36.1119519,
+                    "lng": -115.1727109
+                }
+            },
+            "components": {
+                "bus_stop": "Paris",
+                "country": "United States of America",
+                "country_code": "us",
+                "county": "Clark County",
+                "postcode": "89109",
+                "road": "South Las Vegas Boulevard",
+                "state": "Nevada",
+                "suburb": "Hughes Center",
+                "town": "Paradise"
+            },
+            "confidence": 10,
+            "formatted": "Paris, South Las Vegas Boulevard, Paradise, NV 89109, United States of America",
+            "geometry": {
+                "lat": 36.1120019,
+                "lng": -115.1726609
+            }
+        },
+        {
+            "annotations": {
+                "DMS": {
+                    "lat": "43\u00b0 11' 35.64096'' N",
+                    "lng": "80\u00b0 23' 3.41052'' W"
+                },
+                "MGRS": "17TNH5002882457",
+                "Maidenhead": "EN93te36vj",
+                "Mercator": {
+                    "x": -8948337.195,
+                    "y": 5312174.872
+                },
+                "OSM": {
+                    "url": "http://www.openstreetmap.org/?mlat=43.19323&mlon=-80.38428#map=17/43.19323/-80.38428"
+                },
+                "callingcode": 1,
+                "geohash": "dpwvdz1fy6rfxe9fqxj7",
+                "sun": {
+                    "rise": {
+                        "apparent": 1443698340,
+                        "astronomical": 1443692640,
+                        "civil": 1443696600,
+                        "nautical": 1443694620
+                    },
+                    "set": {
+                        "apparent": 1443740460,
+                        "astronomical": 1443659760,
+                        "civil": 1443742140,
+                        "nautical": 1443657720
+                    }
+                },
+                "timezone": {
+                    "name": "America/Toronto",
+                    "now_in_dst": 1,
+                    "offset_sec": -14400,
+                    "offset_string": -400,
+                    "short_name": "EDT"
+                },
+                "what3words": {
+                    "words": "eradicated.lazed.ignores"
+                }
+            },
+            "bounds": {
+                "northeast": {
+                    "lat": 43.2332336,
+                    "lng": -80.3442807
+                },
+                "southwest": {
+                    "lat": 43.1532336,
+                    "lng": -80.4242807
+                }
+            },
+            "components": {
+                "country": "Canada",
+                "country_code": "ca",
+                "state": "Ontario",
+                "town": "Paris"
+            },
+            "confidence": 7,
+            "formatted": "Paris, Ontario, Canada",
+            "geometry": {
+                "lat": 43.1932336,
+                "lng": -80.3842807
+            }
+        },
+        {
+            "annotations": {
+                "DMS": {
+                    "lat": "39\u00b0 28' 51.13956'' N",
+                    "lng": "92\u00b0 0' 4.61196'' W"
+                },
+                "MGRS": "15SWD8589370617",
+                "Maidenhead": "EM39xl95uj",
+                "Mercator": {
+                    "x": -10241535.764,
+                    "y": 4763615.736
+                },
+                "OSM": {
+                    "url": "http://www.openstreetmap.org/?mlat=39.48087&mlon=-92.00128#map=17/39.48087/-92.00128"
+                },
+                "callingcode": 1,
+                "geohash": "9zn8d7q8wzbxsvtksytd",
+                "sun": {
+                    "rise": {
+                        "apparent": 1443701040,
+                        "astronomical": 1443695640,
+                        "civil": 1443699420,
+                        "nautical": 1443697560
+                    },
+                    "set": {
+                        "apparent": 1443743340,
+                        "astronomical": 1443662280,
+                        "civil": 1443658500,
+                        "nautical": 1443660420
+                    }
+                },
+                "timezone": {
+                    "name": "America/Chicago",
+                    "now_in_dst": 1,
+                    "offset_sec": -18000,
+                    "offset_string": -500,
+                    "short_name": "CDT"
+                },
+                "what3words": {
+                    "words": "paddocks.thyroid.diagram"
+                }
+            },
+            "bounds": {
+                "northeast": {
+                    "lat": 39.489278,
+                    "lng": -91.9916789
+                },
+                "southwest": {
+                    "lat": 39.469158,
+                    "lng": -92.0214799
+                }
+            },
+            "components": {
+                "city": "Paris",
+                "country": "United States of America",
+                "country_code": "us",
+                "county": "Monroe County",
+                "state": "Missouri"
+            },
+            "confidence": 7,
+            "formatted": "Paris, Monroe County, Missouri, United States of America",
+            "geometry": {
+                "lat": 39.4808721,
+                "lng": -92.0012811
+            }
+        },
+        {
+            "annotations": {
+                "DMS": {
+                    "lat": "39\u00b0 36' 40.12560'' N",
+                    "lng": "87\u00b0 41' 46.09464'' W"
+                },
+                "MGRS": "16SDJ4024184831",
+                "Maidenhead": "EM69do66lq",
+                "Mercator": {
+                    "x": -9762289.36,
+                    "y": 4782347.281
+                },
+                "OSM": {
+                    "url": "http://www.openstreetmap.org/?mlat=39.61115&mlon=-87.69614#map=17/39.61115/-87.69614"
+                },
+                "callingcode": 1,
+                "geohash": "dp19k6vxeuu3ybkdndk0",
+                "sun": {
+                    "rise": {
+                        "apparent": 1443700020,
+                        "astronomical": 1443694620,
+                        "civil": 1443698400,
+                        "nautical": 1443696480
+                    },
+                    "set": {
+                        "apparent": 1443742260,
+                        "astronomical": 1443661260,
+                        "civil": 1443743880,
+                        "nautical": 1443659340
+                    }
+                },
+                "timezone": {
+                    "name": "America/Chicago",
+                    "now_in_dst": 1,
+                    "offset_sec": -18000,
+                    "offset_string": -500,
+                    "short_name": "CDT"
+                },
+                "what3words": {
+                    "words": "splice.smile.parks"
+                }
+            },
+            "bounds": {
+                "northeast": {
+                    "lat": 39.648578,
+                    "lng": -87.6505409
+                },
+                "southwest": {
+                    "lat": 39.581423,
+                    "lng": -87.7210459
+                }
+            },
+            "components": {
+                "city": "Paris",
+                "country": "United States of America",
+                "country_code": "us",
+                "county": "Edgar County",
+                "state": "Illinois"
+            },
+            "confidence": 7,
+            "formatted": "Paris, Edgar County, Illinois, United States of America",
+            "geometry": {
+                "lat": 39.611146,
+                "lng": -87.6961374
+            }
+        },
+        {
+            "annotations": {
+                "DMS": {
+                    "lat": "36\u00b0 18' 7.20828'' N",
+                    "lng": "88\u00b0 19' 36.15852'' W"
+                },
+                "MGRS": "16SCF8088118262",
+                "Maidenhead": "EM56uh02tl",
+                "Mercator": {
+                    "x": -9832484.459,
+                    "y": 4316957.801
+                },
+                "OSM": {
+                    "url": "http://www.openstreetmap.org/?mlat=36.30200&mlon=-88.32671#map=17/36.30200/-88.32671"
+                },
+                "callingcode": 1,
+                "geohash": "dn3nw0d6qrwytyhkp8hn",
+                "sun": {
+                    "rise": {
+                        "apparent": 1443700080,
+                        "astronomical": 1443694920,
+                        "civil": 1443698520,
+                        "nautical": 1443696720
+                    },
+                    "set": {
+                        "apparent": 1443742500,
+                        "astronomical": 1443661260,
+                        "civil": 1443657660,
+                        "nautical": 1443659460
+                    }
+                },
+                "timezone": {
+                    "name": "America/Chicago",
+                    "now_in_dst": 1,
+                    "offset_sec": -18000,
+                    "offset_string": -500,
+                    "short_name": "CDT"
+                },
+                "what3words": {
+                    "words": "ritual.spices.bikes"
+                }
+            },
+            "bounds": {
+                "northeast": {
+                    "lat": 36.329016,
+                    "lng": -88.2650669
+                },
+                "southwest": {
+                    "lat": 36.266003,
+                    "lng": -88.3671129
+                }
+            },
+            "components": {
+                "city": "Paris",
+                "country": "United States of America",
+                "country_code": "us",
+                "county": "Henry County",
+                "state": "Tennessee"
+            },
+            "confidence": 7,
+            "formatted": "Paris, Henry County, Tennessee, United States of America",
+            "geometry": {
+                "lat": 36.3020023,
+                "lng": -88.3267107
+            }
+        }
+    ],
+    "status": {
+        "code": 200,
+        "message": "OK"
+    },
+    "stay_informed": {
+        "blog": "http://blog.opencagedata.com",
+        "twitter": "https://twitter.com/opencagedata"
+    },
+    "thanks": "For using an OpenCage Data API",
+    "timestamp": {
+        "created_http": "Thu, 01 Oct 2015 11:44:59 GMT",
+        "created_unix": 1443699899
+    },
+    "total_results": 9
+}

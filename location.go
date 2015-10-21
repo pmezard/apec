@@ -164,40 +164,68 @@ func geocodeOffer(geocoder *Geocoder, offer *Offer, offline bool) (
 	return offer.Location, loc, nil
 }
 
-func geocodeOffers(geocoder *Geocoder, offers []*Offer, minQuota int,
-	verbose bool) (int, error) {
-
+func geocodeOffers(geocoder *Geocoder, offers []*Offer, minQuota int) (int, error) {
 	rejected := 0
+	quota := true
 	for i, offer := range offers {
-		q, loc, err := geocodeOffer(geocoder, offer, rejected > 0)
-		if err != nil {
-			fmt.Printf("error: geocoding %s: %s\n", q, err)
-			if err != QuotaError {
+		candidates := fixLocation(offer.Location)
+		found := false
+		for _, c := range candidates {
+			// Resolve from cache
+			pos, ok, err := geocoder.GetCachedLocation(c, "fr")
+			if err != nil {
 				return rejected, err
 			}
-			rejected += 1
-		} else if loc == nil {
-			rejected += 1
-		} else if !loc.Cached || verbose {
+			if pos != nil {
+				found = true
+				offer.City = pos.City
+				offer.County = pos.County
+				offer.State = pos.State
+				offer.Country = pos.Country
+				break
+			}
+			if ok {
+				// It cannot be geocoded
+				break
+			}
+			if !quota {
+				// Tolerate a lower quality geocoding for now
+				continue
+			}
+			loc, err := geocoder.Geocode(c, "fr", false)
+			if err != nil {
+				fmt.Printf("error: geocoding %s: %s\n", c, err)
+				if err != QuotaError {
+					return rejected, err
+				}
+				quota = false
+				continue
+			}
+			if loc.Rate.Remaining <= minQuota {
+				// Try to preserve quota for test purpose. This is not
+				// perfect as it consumes one geocoding token per function
+				// call. I do not know how to query quota directly yet.
+				quota = false
+			}
+			p := buildLocation(loc)
 			result := "no result"
-			if len(loc.Results) > 0 {
+			if p != nil {
 				result = loc.Results[0].Component.String()
 			}
-			prefix := fmt.Sprintf("geocoding %d/%d %s => %s => %s", i+1, len(offers),
-				offer.Location, q, result)
-			if !loc.Cached {
-				fmt.Printf("%s (quota: %d/%d)\n", prefix, loc.Rate.Remaining,
-					loc.Rate.Limit)
-				if loc.Rate.Remaining <= minQuota {
-					// Try to preserve quota for test purpose. This is not
-					// perfect as it consumes one geocoding token per function
-					// call. I do not know how to query quota directly yet.
-					rejected += 1
-				}
-				time.Sleep(1 * time.Second)
-			} else {
-				fmt.Printf("%s\n", prefix)
+			fmt.Printf("geocoding %d/%d %s => %s => %s (quota: %d/%d)\n",
+				i+1, len(offers), offer.Location, c, result, loc.Rate.Remaining,
+				loc.Rate.Limit)
+			if p != nil {
+				offer.City = p.City
+				offer.County = p.County
+				offer.State = p.State
+				offer.Country = p.Country
+				found = true
 			}
+			time.Sleep(1 * time.Second)
+		}
+		if !found {
+			rejected++
 		}
 	}
 	return rejected, nil
