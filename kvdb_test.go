@@ -261,7 +261,7 @@ func TestKVDBInc(t *testing.T) {
 	// Check it actually increments
 	p := []byte("prefix")
 	checkUpdate(t, db, func(tx *Tx) error {
-		n, err := tx.Inc(p, 2)
+		n, err := tx.IncSeq(p, 2)
 		if err != nil {
 			t.Fatalf("could not increment from nothing: %s", err)
 		}
@@ -273,7 +273,7 @@ func TestKVDBInc(t *testing.T) {
 
 	// Again
 	checkUpdate(t, db, func(tx *Tx) error {
-		n, err := tx.Inc(p, 1)
+		n, err := tx.IncSeq(p, 1)
 		if err != nil {
 			t.Fatalf("could not increment from 2: %s", err)
 		}
@@ -285,6 +285,13 @@ func TestKVDBInc(t *testing.T) {
 
 	// Check it does not mess with key enumerations
 	checkView(t, db, func(tx *Tx) error {
+		n, err := tx.GetSeq(p)
+		if err != nil {
+			t.Fatalf("could not fetch sequence: %s", err)
+		}
+		if n != 3 {
+			t.Fatalf("sequence returned %d, expected 3", n)
+		}
 		keys, err := tx.List(p)
 		if err != nil {
 			t.Fatalf("could not list keys: %s", err)

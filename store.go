@@ -132,7 +132,7 @@ func (s *Store) Delete(id string, now time.Time) error {
 			return nil
 		}
 		// Move data in "deleted" table
-		deletedId, err := tx.Inc(kvDeletedBucket, 1)
+		deletedId, err := tx.IncSeq(kvDeletedBucket, 1)
 		if err != nil {
 			return err
 		}

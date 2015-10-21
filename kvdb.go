@@ -153,15 +153,23 @@ func (tx *Tx) Delete(prefix, key []byte) error {
 	return nil
 }
 
-func (tx *Tx) Inc(prefix []byte, delta int64) (int64, error) {
-	if !tx.write {
-		panic("calling Tx.Inc in a read-only transaction")
-	}
+func (tx *Tx) inc(prefix []byte, delta int64) (int64, error) {
 	suffix := []byte("-seq")
 	key := make([]byte, len(prefix)+len(suffix))
 	copy(key, prefix)
 	copy(key[len(prefix):], suffix)
 	return tx.db.Inc(key, delta)
+}
+
+func (tx *Tx) IncSeq(prefix []byte, delta int64) (int64, error) {
+	if !tx.write {
+		panic("calling Tx.Inc in a read-only transaction")
+	}
+	return tx.inc(prefix, delta)
+}
+
+func (tx *Tx) GetSeq(prefix []byte) (int64, error) {
+	return tx.inc(prefix, 0)
 }
 
 type KVDB struct {
