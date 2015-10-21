@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -47,14 +46,9 @@ func printOffers(store *Store, ids []string) error {
 	// Load offer documents
 	offers := []*jsonOffer{}
 	for _, id := range ids {
-		data, err := store.Get(id)
-		if err != nil {
-			return err
-		}
-		offer := &jsonOffer{}
-		err = json.Unmarshal(data, offer)
-		if err != nil {
-			return err
+		offer, err := getStoreJsonOffer(store, id)
+		if err != nil || offer == nil {
+			continue
 		}
 		offers = append(offers, offer)
 	}

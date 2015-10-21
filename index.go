@@ -18,16 +18,6 @@ import (
 	"github.com/blevesearch/bleve/index/upside_down"
 )
 
-func loadOffer(store *Store, id string) (*jsonOffer, error) {
-	data, err := store.Get(id)
-	if err != nil {
-		return nil, err
-	}
-	offer := &jsonOffer{}
-	err = json.Unmarshal(data, offer)
-	return offer, err
-}
-
 type offerResult struct {
 	Id    string
 	Offer *jsonOffer
@@ -54,7 +44,7 @@ func loadOffers(store *Store) ([]*jsonOffer, error) {
 		go func() {
 			defer running.Done()
 			for id := range pending {
-				offer, err := loadOffer(store, id)
+				offer, err := getStoreJsonOffer(store, id)
 				results <- offerResult{
 					Id:    id,
 					Offer: offer,
@@ -123,7 +113,7 @@ func convertOffer(offer *jsonOffer) (*Offer, error) {
 	return r, nil
 }
 
-func getStoreOffer(store *Store, id string) (*Offer, error) {
+func getStoreJsonOffer(store *Store, id string) (*jsonOffer, error) {
 	data, err := store.Get(id)
 	if err != nil {
 		return nil, err
@@ -133,7 +123,12 @@ func getStoreOffer(store *Store, id string) (*Offer, error) {
 	}
 	js := &jsonOffer{}
 	err = json.Unmarshal(data, js)
-	if err != nil {
+	return js, err
+}
+
+func getStoreOffer(store *Store, id string) (*Offer, error) {
+	js, err := getStoreJsonOffer(store, id)
+	if err != nil || js == nil {
 		return nil, err
 	}
 	return convertOffer(js)
