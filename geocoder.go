@@ -83,7 +83,7 @@ func makeKeyAndCountryCode(q, code string) (string, string) {
 	return q + "-" + code, code
 }
 
-func (g *Geocoder) GeocodeFromCache(q, countryCode string) (*jstruct.Location, error) {
+func (g *Geocoder) geocodeFromCache(q, countryCode string) (*jstruct.Location, error) {
 	key, countryCode := makeKeyAndCountryCode(q, countryCode)
 	data, err := g.cache.Get(key)
 	if err != nil {
@@ -101,7 +101,7 @@ func (g *Geocoder) GeocodeFromCache(q, countryCode string) (*jstruct.Location, e
 func (g *Geocoder) Geocode(q, countryCode string, offline bool) (
 	*jstruct.Location, error) {
 
-	res, err := g.GeocodeFromCache(q, countryCode)
+	res, err := g.geocodeFromCache(q, countryCode)
 	if err != nil || res != nil || offline {
 		return res, err
 	}

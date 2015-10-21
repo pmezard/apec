@@ -135,7 +135,7 @@ func findOffersFromLocation(query string, spatial *SpatialIndex, geocoder *Geoco
 	parts := strings.Split(query, ",")
 	lat, lon, radius := float64(0), float64(0), float64(0)
 	if len(parts) == 2 {
-		loc, err := geocoder.GeocodeFromCache(strings.ToLower(parts[0]), "fr")
+		loc, err := geocoder.Geocode(strings.ToLower(parts[0]), "fr", true)
 		if err != nil {
 			return nil, err
 		}
