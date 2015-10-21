@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -16,15 +15,17 @@ import (
 	bleveuni "github.com/blevesearch/bleve/analysis/tokenizers/unicode"
 	"github.com/blevesearch/bleve/index/store/boltdb"
 	"github.com/blevesearch/bleve/index/upside_down"
+	"github.com/pmezard/apec/jstruct"
+	"github.com/pquerna/ffjson/ffjson"
 )
 
 type offerResult struct {
 	Id    string
-	Offer *jsonOffer
+	Offer *jstruct.JsonOffer
 	Err   error
 }
 
-func loadOffers(store *Store) ([]*jsonOffer, error) {
+func loadOffers(store *Store) ([]*jstruct.JsonOffer, error) {
 	ids, err := store.List()
 	if err != nil {
 		return nil, err
@@ -58,7 +59,7 @@ func loadOffers(store *Store) ([]*jsonOffer, error) {
 		close(results)
 	}()
 
-	offers := []*jsonOffer{}
+	offers := []*jstruct.JsonOffer{}
 	for r := range results {
 		if r.Err != nil {
 			fmt.Printf("loading error for %s: %s\n", r.Id, r.Err)
@@ -90,7 +91,7 @@ const (
 		"liste-des-offres-demploi/detail-de-loffre-demploi.html?numIdOffre="
 )
 
-func convertOffer(offer *jsonOffer) (*Offer, error) {
+func convertOffer(offer *jstruct.JsonOffer) (*Offer, error) {
 	r := &Offer{
 		Account:  offer.Account,
 		Id:       offer.Id,
@@ -113,7 +114,7 @@ func convertOffer(offer *jsonOffer) (*Offer, error) {
 	return r, nil
 }
 
-func getStoreJsonOffer(store *Store, id string) (*jsonOffer, error) {
+func getStoreJsonOffer(store *Store, id string) (*jstruct.JsonOffer, error) {
 	data, err := store.Get(id)
 	if err != nil {
 		return nil, err
@@ -121,8 +122,8 @@ func getStoreJsonOffer(store *Store, id string) (*jsonOffer, error) {
 	if data == nil {
 		return nil, nil
 	}
-	js := &jsonOffer{}
-	err = json.Unmarshal(data, js)
+	js := &jstruct.JsonOffer{}
+	err = ffjson.Unmarshal(data, js)
 	return js, err
 }
 
@@ -134,7 +135,7 @@ func getStoreOffer(store *Store, id string) (*Offer, error) {
 	return convertOffer(js)
 }
 
-func convertOffers(offers []*jsonOffer) ([]*Offer, error) {
+func convertOffers(offers []*jstruct.JsonOffer) ([]*Offer, error) {
 	result := make([]*Offer, 0, len(offers))
 	for _, o := range offers {
 		r, err := convertOffer(o)

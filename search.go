@@ -6,24 +6,10 @@ import (
 	"strings"
 
 	"github.com/blevesearch/bleve"
+	"github.com/pmezard/apec/jstruct"
 )
 
-type jsonOffer struct {
-	Id          string `json:"numeroOffre"`
-	Title       string `json:"intitule"`
-	Date        string `json:"datePublication"`
-	Salary      string `json:"salaireTexte"`
-	PartialTime bool   `json:"tempsPartiel"`
-	Location    string `json:"lieuTexte"`
-	HTML        string `json:"texteHtml"`
-	Account     string `json:"nomCompteEtablissement"`
-}
-
-func (offer *jsonOffer) Type() string {
-	return "offer"
-}
-
-type offersByDate []*jsonOffer
+type offersByDate []*jstruct.JsonOffer
 
 func (s offersByDate) Len() int {
 	return len(s)
@@ -44,7 +30,7 @@ func formatDate(s string) string {
 
 func printOffers(store *Store, ids []string) error {
 	// Load offer documents
-	offers := []*jsonOffer{}
+	offers := []*jstruct.JsonOffer{}
 	for _, id := range ids {
 		offer, err := getStoreJsonOffer(store, id)
 		if err != nil || offer == nil {
