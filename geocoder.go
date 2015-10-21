@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +9,9 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+
+	"github.com/pmezard/apec/jstruct"
+	"github.com/pquerna/ffjson/ffjson"
 )
 
 var (
@@ -73,62 +75,6 @@ func (g *Geocoder) Close() error {
 	return g.cache.Close()
 }
 
-type LocRate struct {
-	Limit     int `json:"limit"`
-	Remaining int `json:"remaining"`
-}
-
-type LocComponent struct {
-	City        string `json:"city"`
-	PostCode    string `json:"postcode"`
-	County      string `json:"county"`
-	State       string `json:"state"`
-	Country     string `json:"country"`
-	CountryCode string `json:"country_code"`
-}
-
-func (c *LocComponent) String() string {
-	values := []struct {
-		Field string
-		Value string
-	}{
-		{"city", c.City},
-		{"postcode", c.PostCode},
-		{"county", c.County},
-		{"state", c.State},
-		{"country", c.Country},
-	}
-	s := ""
-	written := false
-	for _, v := range values {
-		if v.Value == "" {
-			continue
-		}
-		if written {
-			s += ", "
-		}
-		s += fmt.Sprintf("%s: %s", v.Field, v.Value)
-		written = true
-	}
-	return s
-}
-
-type LocGeom struct {
-	Lat float64 `json:"lat"`
-	Lon float64 `json:"lng"`
-}
-
-type LocResult struct {
-	Component LocComponent `json:"components"`
-	Geometry  *LocGeom     `json:"geometry"`
-}
-
-type Location struct {
-	Cached  bool
-	Rate    LocRate     `json:"rate"`
-	Results []LocResult `json:"results"`
-}
-
 func makeKeyAndCountryCode(q, code string) (string, string) {
 	code = strings.ToLower(code)
 	if code == "" {
@@ -137,7 +83,7 @@ func makeKeyAndCountryCode(q, code string) (string, string) {
 	return q + "-" + code, code
 }
 
-func (g *Geocoder) GeocodeFromCache(q, countryCode string) (*Location, error) {
+func (g *Geocoder) GeocodeFromCache(q, countryCode string) (*jstruct.Location, error) {
 	key, countryCode := makeKeyAndCountryCode(q, countryCode)
 	data, err := g.cache.Get(key)
 	if err != nil {
@@ -146,13 +92,15 @@ func (g *Geocoder) GeocodeFromCache(q, countryCode string) (*Location, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
-	res := &Location{}
-	err = json.Unmarshal(data, res)
+	res := &jstruct.Location{}
+	err = ffjson.Unmarshal(data, res)
 	res.Cached = true
 	return res, err
 }
 
-func (g *Geocoder) Geocode(q, countryCode string, offline bool) (*Location, error) {
+func (g *Geocoder) Geocode(q, countryCode string, offline bool) (
+	*jstruct.Location, error) {
+
 	res, err := g.GeocodeFromCache(q, countryCode)
 	if err != nil || res != nil || offline {
 		return res, err
@@ -169,8 +117,8 @@ func (g *Geocoder) Geocode(q, countryCode string, offline bool) (*Location, erro
 	if err != nil {
 		return nil, err
 	}
-	res = &Location{}
-	err = json.Unmarshal(data, res)
+	res = &jstruct.Location{}
+	err = ffjson.Unmarshal(data, res)
 	if err != nil {
 		return nil, err
 	}

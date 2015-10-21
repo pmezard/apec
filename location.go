@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pmezard/apec/jstruct"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
 )
@@ -140,9 +141,9 @@ func fixLocation(s string) []string {
 }
 
 func geocodeOffer(geocoder *Geocoder, offer *Offer, offline bool) (
-	string, *Location, error) {
+	string, *jstruct.Location, error) {
 
-	var loc *Location
+	var loc *jstruct.Location
 	var err error
 	candidates := fixLocation(offer.Location)
 	for _, candidate := range candidates {

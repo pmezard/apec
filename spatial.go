@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/patrick-higgins/rtreego"
+	"github.com/pmezard/apec/jstruct"
 )
 
 type OfferLoc struct {
@@ -22,7 +23,9 @@ var (
 	locExtent = [2]float64{1e-6, 1e-6}
 )
 
-func makeOfferLocation(id string, date time.Time, loc *Location) (*OfferLoc, error) {
+func makeOfferLocation(id string, date time.Time, loc *jstruct.Location) (
+	*OfferLoc, error) {
+
 	if loc == nil || len(loc.Results) == 0 || loc.Results[0].Geometry == nil {
 		return nil, nil
 	}
