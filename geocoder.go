@@ -204,31 +204,11 @@ func (c *Cache) List() ([]string, error) {
 }
 
 func (c *Cache) Version() (int, error) {
-	version := 0
-	err := c.db.View(func(tx *Tx) error {
-		v, err := tx.GetSeq(geoCacheBucket)
-		version = int(v)
-		return err
-	})
-	return version, err
+	return getKVDBVersion(c.db, geoCacheBucket)
 }
 
 func (c *Cache) SetVersion(version int) error {
-	return c.db.Update(func(tx *Tx) error {
-		v, err := tx.GetSeq(geoCacheBucket)
-		if err != nil {
-			return err
-		}
-		current := int(v)
-		if current > version {
-			return fmt.Errorf("cannot downgrade version from %d to %d", current, version)
-		}
-		if current == version {
-			return nil
-		}
-		_, err = tx.IncSeq(geoCacheBucket, int64(version-current))
-		return err
-	})
+	return setKVDBVersion(c.db, geoCacheBucket, version)
 }
 
 type Geocoder struct {

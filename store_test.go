@@ -119,3 +119,76 @@ func TestOfferSize(t *testing.T) {
 		t.Fatalf("empty store has %d items", size)
 	}
 }
+
+func TestOfferLocation(t *testing.T) {
+	store := openTempStore(t)
+	defer closeAndDeleteStore(t, store)
+
+	id := "1"
+	now := time.Now()
+	data := []byte("dummy")
+	loc := &Location{
+		City: "Paris",
+	}
+
+	err := store.PutLocation(id, loc)
+	if err == nil {
+		t.Fatalf("adding location to missing offers should have failed")
+	}
+
+	// Test non-nil location
+	err = store.Put(id, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = store.PutLocation(id, loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc2, ok, err := store.GetLocation(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loc2 == nil || !ok {
+		t.Fatalf("unexpected nil location")
+	}
+
+	// Resetting the data should invalidate the location
+	err = store.Put(id, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc2, ok, err = store.GetLocation(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loc2 != nil || ok {
+		t.Fatal("location should have been reset by Put()")
+	}
+
+	// Test empty location
+	err = store.PutLocation(id, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc2, ok, err = store.GetLocation(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loc2 != nil || !ok {
+		t.Fatal("could not retrieve empty location")
+	}
+
+	// Deleting an offer remove its location
+	err = store.Delete(id, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc2, ok, err = store.GetLocation(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loc2 != nil || ok {
+		t.Fatal("location should have been removed by Delete()")
+	}
+}

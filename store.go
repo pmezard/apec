@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"time"
 )
@@ -14,6 +16,7 @@ type Store struct {
 var (
 	kvMetaBucket        = []byte("m")
 	kvOffersBucket      = []byte("o")
+	kvLocationsBucket   = []byte("l")
 	kvDeletedBucket     = []byte("d")
 	kvDeletedKeysBucket = []byte("dk")
 )
@@ -76,7 +79,13 @@ func (s *Store) setVersion(tx *Tx, version int) error {
 
 func (s *Store) Put(id string, data []byte) error {
 	return s.db.Update(func(tx *Tx) error {
-		return tx.Put(kvOffersBucket, []byte(id), data)
+		k := []byte(id)
+		// Invalid cached location
+		err := tx.Delete(kvLocationsBucket, k)
+		if err != nil {
+			return err
+		}
+		return tx.Put(kvOffersBucket, k, data)
 	})
 }
 
@@ -154,6 +163,11 @@ func (s *Store) Delete(id string, now time.Time) error {
 		if err != nil {
 			return err
 		}
+		// Delete cached location
+		err = tx.Delete(kvLocationsBucket, key)
+		if err != nil {
+			return err
+		}
 		// Delete the live offer
 		return tx.Delete(kvOffersBucket, key)
 	})
@@ -211,4 +225,59 @@ func (s *Store) Size() int {
 		return err
 	})
 	return n
+}
+
+func (s *Store) Version() (int, error) {
+	return getKVDBVersion(s.db, kvOffersBucket)
+}
+
+func (s *Store) SetVersion(version int) error {
+	return setKVDBVersion(s.db, kvOffersBucket, version)
+}
+
+func (s *Store) PutLocation(id string, loc *Location) error {
+	return s.db.Update(func(tx *Tx) error {
+		k := []byte(id)
+		data, err := tx.Get(kvOffersBucket, k)
+		if err != nil {
+			return err
+		}
+		if data == nil {
+			return fmt.Errorf("cannot add location for unknown offer %s", id)
+		}
+
+		w := bytes.NewBuffer(nil)
+		if loc != nil {
+			err := writeBinaryLocation(w, loc)
+			if err != nil {
+				return err
+			}
+		} else {
+			// BUG: does kv support empty values?
+			err := w.WriteByte('\x00')
+			if err != nil {
+				return err
+			}
+		}
+		return tx.Put(kvLocationsBucket, k, w.Bytes())
+	})
+}
+
+func (s *Store) GetLocation(id string) (*Location, bool, error) {
+	var p *Location
+	found := false
+	err := s.db.View(func(tx *Tx) error {
+		data, err := tx.Get(kvLocationsBucket, []byte(id))
+		found = data != nil
+		if err != nil || len(data) <= 1 {
+			return err
+		}
+		point, err := readBinaryLocation(bytes.NewBuffer(data))
+		if err != nil {
+			return err
+		}
+		p = point
+		return nil
+	})
+	return p, found, err
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -250,4 +251,32 @@ func (db *KVDB) Update(action func(tx *Tx) error) error {
 
 func (db *KVDB) Path() string {
 	return db.db.Name()
+}
+
+func getKVDBVersion(db *KVDB, prefix []byte) (int, error) {
+	version := 0
+	err := db.View(func(tx *Tx) error {
+		v, err := tx.GetSeq(prefix)
+		version = int(v)
+		return err
+	})
+	return version, err
+}
+
+func setKVDBVersion(db *KVDB, prefix []byte, version int) error {
+	return db.Update(func(tx *Tx) error {
+		v, err := tx.GetSeq(prefix)
+		if err != nil {
+			return err
+		}
+		current := int(v)
+		if current > version {
+			return fmt.Errorf("cannot downgrade version from %d to %d", current, version)
+		}
+		if current == version {
+			return nil
+		}
+		_, err = tx.IncSeq(prefix, int64(version-current))
+		return err
+	})
 }
