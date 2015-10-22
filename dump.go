@@ -36,10 +36,6 @@ func dumpDeletedOffersFn(cfg *Config) error {
 	return nil
 }
 
-var (
-	changesCmd = app.Command("changes", "print offers changes per day")
-)
-
 func printChanges(w io.Writer, store *Store, reverse bool) error {
 	changes := map[string]struct {
 		Added   int
@@ -103,6 +99,10 @@ func printChanges(w io.Writer, store *Store, reverse bool) error {
 	}
 	return nil
 }
+
+var (
+	changesCmd = app.Command("changes", "print offers changes per day")
+)
 
 func changesFn(cfg *Config) error {
 	store, err := OpenStore(cfg.Store())
