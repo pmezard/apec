@@ -271,6 +271,13 @@ func (h *GeocodingHandler) geocode(minQuota int) error {
 	rejected := 0
 	offline := false
 	for _, id := range ids {
+		_, ok, err := h.store.GetLocation(id)
+		if err != nil {
+			return err
+		}
+		if ok {
+			continue
+		}
 		offer, err := getStoreOffer(h.store, id)
 		if err != nil {
 			return err
@@ -283,6 +290,12 @@ func (h *GeocodingHandler) geocode(minQuota int) error {
 			return err
 		}
 		offline = off
+		if !offline {
+			err = h.store.PutLocation(id, pos)
+			if err != nil {
+				return err
+			}
+		}
 		if pos == nil {
 			rejected++
 			continue

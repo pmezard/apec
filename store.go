@@ -281,3 +281,13 @@ func (s *Store) GetLocation(id string) (*Location, bool, error) {
 	})
 	return p, found, err
 }
+
+func (s *Store) ListLocations() ([]string, error) {
+	var err error
+	var ids []string
+	err = s.db.View(func(tx *Tx) error {
+		ids, err = tx.List(kvLocationsBucket)
+		return err
+	})
+	return ids, err
+}

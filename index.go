@@ -263,7 +263,7 @@ func indexOffers(cfg *Config) error {
 			return err
 		}
 		defer geocoder.Close()
-		rejected, err = geocodeOffers(geocoder, offers, *indexMinQuota)
+		rejected, err = geocodeOffers(store, geocoder, offers, *indexMinQuota)
 		if err != nil {
 			return err
 		}

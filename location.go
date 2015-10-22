@@ -188,7 +188,9 @@ func geocodeOffer(geocoder *Geocoder, location string, offline bool,
 	return nil, false, offline, nil
 }
 
-func geocodeOffers(geocoder *Geocoder, offers []*Offer, minQuota int) (int, error) {
+func geocodeOffers(store *Store, geocoder *Geocoder, offers []*Offer,
+	minQuota int) (int, error) {
+
 	rejected := 0
 	offline := false
 	for _, offer := range offers {
@@ -198,6 +200,12 @@ func geocodeOffers(geocoder *Geocoder, offers []*Offer, minQuota int) (int, erro
 			return rejected, err
 		}
 		offline = off
+		if !offline {
+			err = store.PutLocation(offer.Id, pos)
+			if err != nil {
+				return rejected, err
+			}
+		}
 		if pos == nil {
 			rejected++
 		}

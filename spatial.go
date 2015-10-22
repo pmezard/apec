@@ -44,14 +44,11 @@ func makeOfferLocation(id string, date time.Time, loc *Location) (
 
 func getOfferLocation(store *Store, geocoder *Geocoder, id string) (*OfferLoc, error) {
 	offer, err := getStoreOffer(store, id)
-	if err != nil {
+	if err != nil || offer == nil {
 		return nil, err
 	}
-	if offer == nil {
-		return nil, nil
-	}
-	loc, _, _, err := geocodeOffer(geocoder, offer.Location, true, 0)
-	if err != nil {
+	loc, _, err := store.GetLocation(id)
+	if err != nil || loc == nil {
 		return nil, err
 	}
 	return makeOfferLocation(offer.Id, offer.Date, loc)
