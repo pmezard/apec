@@ -141,20 +141,22 @@ func findOffersFromLocation(query string, spatial *SpatialIndex, geocoder *Geoco
 	}
 	parts := strings.Split(query, ",")
 	lat, lon, radius := float64(0), float64(0), float64(0)
-	if len(parts) == 2 {
-		loc, err := geocoder.Geocode(strings.ToLower(parts[0]), "fr", true)
+	if len(parts) == 1 || len(parts) == 2 {
+		loc, ok, err := geocoder.GetCachedLocation(strings.ToLower(parts[0]), "fr")
 		if err != nil {
 			return nil, err
 		}
-		if loc == nil || len(loc.Results) == 0 || loc.Results[0].Geometry == nil {
+		if !ok {
 			return nil, fmt.Errorf("could not geocode %s", query)
 		}
-		g := loc.Results[0].Geometry
-		lat = g.Lat
-		lon = g.Lon
-		radius, err = strconv.ParseFloat(parts[1], 64)
-		if err != nil {
-			return nil, err
+		lat = loc.Lat
+		lon = loc.Lon
+		radius = float64(30000)
+		if len(parts) == 2 {
+			radius, err = strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+			if err != nil {
+				return nil, err
+			}
 		}
 	} else if len(parts) == 3 {
 		floats := []float64{}
