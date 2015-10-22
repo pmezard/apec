@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"math"
 	"sync"
 	"time"
@@ -128,4 +129,39 @@ func (s *SpatialIndex) FindNearest(lat, lon, maxDist float64) ([]datedOffer, err
 		})
 	}
 	return offers, nil
+}
+
+var (
+	spatialCmd = app.Command("spatial", "create spatial index (for benchmarks)")
+)
+
+func spatialFn(cfg *Config) error {
+	store, err := OpenStore(cfg.Store())
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	geocoder, err := NewGeocoder(cfg.GeocodingKey(), cfg.Geocoder())
+	if err != nil {
+		return err
+	}
+	defer geocoder.Close()
+	ids, err := store.List()
+	if err != nil {
+		return err
+	}
+	spatial := NewSpatialIndex()
+	for i, id := range ids {
+		if (i+1)%500 == 0 {
+			log.Printf("%d spatially indexed", i+1)
+		}
+		loc, err := getOfferLocation(store, geocoder, id)
+		if err != nil {
+			return err
+		}
+		if loc != nil {
+			spatial.Add(loc)
+		}
+	}
+	return nil
 }

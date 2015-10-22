@@ -68,8 +68,10 @@ func dispatch() error {
 		return dumpDeletedOffersFn(cfg)
 	case changesCmd.FullCommand():
 		return changesFn(cfg)
+	case spatialCmd.FullCommand():
+		return spatialFn(cfg)
 	}
-	return nil
+	return fmt.Errorf("unknown command: %s", cmd)
 }
 
 func main() {
