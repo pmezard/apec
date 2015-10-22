@@ -269,7 +269,8 @@ func (h *GeocodingHandler) geocode(minQuota int) error {
 		return err
 	}
 	rejected := 0
-	for i, id := range ids {
+	offline := false
+	for _, id := range ids {
 		offer, err := getStoreOffer(h.store, id)
 		if err != nil {
 			return err
@@ -277,42 +278,24 @@ func (h *GeocodingHandler) geocode(minQuota int) error {
 		if offer == nil {
 			continue
 		}
-		q, loc, err := geocodeOffer(h.geocoder, offer, rejected > 0)
+		pos, live, off, err := geocodeOffer(h.geocoder, offer.Location, offline, 0)
 		if err != nil {
-			log.Printf("error: geocoding %s: %s\n", q, err)
-			if err != QuotaError {
-				return err
-			}
-			rejected += 1
-		} else if loc == nil {
-			rejected += 1
-		} else if !loc.Cached {
-			result := "no result"
-			if len(loc.Results) > 0 {
-				result = loc.Results[0].Component.String()
-			}
-			prefix := fmt.Sprintf("geocoding %d/%d %s => %s => %s", i+1, len(ids),
-				offer.Location, q, result)
-			if !loc.Cached {
-				offerLoc, err := makeOfferLocation(offer.Id, offer.Date, loc)
-				if err != nil {
-					log.Printf("error: cannot make offer location for %s: %s", id, err)
-				} else if offerLoc != nil {
-					h.spatial.Remove(offer.Id)
-					h.spatial.Add(offerLoc)
-				}
-				log.Printf("%s (quota: %d/%d)\n", prefix, loc.Rate.Remaining,
-					loc.Rate.Limit)
-				if loc.Rate.Remaining <= minQuota {
-					// Try to preserve quota for test purpose. This is not
-					// perfect as it consumes one geocoding token per function
-					// call. I do not know how to query quota directly yet.
-					rejected += 1
-				}
-				time.Sleep(1 * time.Second)
-			} else {
-				log.Printf("%s\n", prefix)
-			}
+			return err
+		}
+		offline = off
+		if pos == nil {
+			rejected++
+			continue
+		}
+		if !live {
+			continue
+		}
+		offerLoc, err := makeOfferLocation(offer.Id, offer.Date, pos)
+		if err != nil {
+			log.Printf("error: cannot make offer location for %s: %s", id, err)
+		} else if offerLoc != nil {
+			h.spatial.Remove(offer.Id)
+			h.spatial.Add(offerLoc)
 		}
 	}
 	return nil

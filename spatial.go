@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/patrick-higgins/rtreego"
-	"github.com/pmezard/apec/jstruct"
 )
 
 type OfferLoc struct {
@@ -23,15 +22,14 @@ var (
 	locExtent = [2]float64{1e-6, 1e-6}
 )
 
-func makeOfferLocation(id string, date time.Time, loc *jstruct.Location) (
+func makeOfferLocation(id string, date time.Time, loc *Location) (
 	*OfferLoc, error) {
 
-	if loc == nil || len(loc.Results) == 0 || loc.Results[0].Geometry == nil {
+	if loc == nil {
 		return nil, nil
 	}
-	g := loc.Results[0].Geometry
-	lon := g.Lon - locExtent[0]/2
-	lat := g.Lat - locExtent[1]/2
+	lon := loc.Lon - locExtent[0]/2
+	lat := loc.Lat - locExtent[1]/2
 	rect, err := rtreego.NewRect(rtreego.Point{lon, lat}, locExtent)
 	if err != nil {
 		return nil, err
@@ -51,7 +49,7 @@ func getOfferLocation(store *Store, geocoder *Geocoder, id string) (*OfferLoc, e
 	if offer == nil {
 		return nil, nil
 	}
-	_, loc, err := geocodeOffer(geocoder, offer, true)
+	loc, _, _, err := geocodeOffer(geocoder, offer.Location, true, 0)
 	if err != nil {
 		return nil, err
 	}

@@ -1,11 +1,10 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"strings"
 	"time"
 
-	"github.com/pmezard/apec/jstruct"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
 )
@@ -140,91 +139,68 @@ func fixLocation(s string) []string {
 	return result
 }
 
-func geocodeOffer(geocoder *Geocoder, offer *Offer, offline bool) (
-	string, *jstruct.Location, error) {
+// getOfferLocation returns a cached or live geocoded location, an updated
+// "offline" boolean signaling whether live calls could proceed or not, and an
+// error on failure.
+func geocodeOffer(geocoder *Geocoder, location string, offline bool,
+	minQuota int) (*Location, bool, bool, error) {
 
-	var loc *jstruct.Location
-	var err error
-	candidates := fixLocation(offer.Location)
-	for _, candidate := range candidates {
-		loc, err = geocoder.Geocode(candidate, "fr", offline)
+	candidates := fixLocation(location)
+	for _, c := range candidates {
+		// Resolve from cache
+		pos, ok, err := geocoder.GetCachedLocation(c, "fr")
 		if err != nil {
-			return candidate, nil, err
+			return nil, false, offline, err
 		}
-		if loc == nil || len(loc.Results) == 0 {
+		if pos != nil || ok {
+			return pos, false, offline, nil
+		}
+		if offline {
+			// Tolerate a lower quality geocoding for now
 			continue
 		}
-		res := loc.Results[0].Component
-		offer.City = res.City
-		offer.County = res.County
-		offer.State = res.State
-		offer.Country = res.Country
-		return candidate, loc, nil
+		loc, err := geocoder.Geocode(c, "fr", false)
+		if err != nil {
+			if err != QuotaError {
+				return nil, false, offline, err
+			}
+			offline = true
+			continue
+		}
+		if loc.Rate.Remaining <= minQuota {
+			// Try to preserve quota for test purpose. This is not
+			// perfect as it consumes one geocoding token per function
+			// call. I do not know how to query quota directly yet.
+			offline = true
+		}
+		p := buildLocation(loc)
+		result := "no result"
+		if p != nil {
+			result = loc.Results[0].Component.String()
+		}
+		log.Printf("geocoding %s => %s => %s (quota: %d/%d)\n",
+			location, c, result, loc.Rate.Remaining, loc.Rate.Limit)
+		time.Sleep(1 * time.Second)
+		if p != nil {
+			return p, true, offline, nil
+		}
 	}
-	return offer.Location, loc, nil
+	return nil, false, offline, nil
 }
 
 func geocodeOffers(geocoder *Geocoder, offers []*Offer, minQuota int) (int, error) {
 	rejected := 0
-	quota := true
-	for i, offer := range offers {
-		candidates := fixLocation(offer.Location)
-		found := false
-		for _, c := range candidates {
-			// Resolve from cache
-			pos, ok, err := geocoder.GetCachedLocation(c, "fr")
-			if err != nil {
-				return rejected, err
-			}
-			if pos != nil {
-				found = true
-				offer.City = pos.City
-				offer.County = pos.County
-				offer.State = pos.State
-				offer.Country = pos.Country
-				break
-			}
-			if ok {
-				// It cannot be geocoded
-				break
-			}
-			if !quota {
-				// Tolerate a lower quality geocoding for now
-				continue
-			}
-			loc, err := geocoder.Geocode(c, "fr", false)
-			if err != nil {
-				fmt.Printf("error: geocoding %s: %s\n", c, err)
-				if err != QuotaError {
-					return rejected, err
-				}
-				quota = false
-				continue
-			}
-			if loc.Rate.Remaining <= minQuota {
-				// Try to preserve quota for test purpose. This is not
-				// perfect as it consumes one geocoding token per function
-				// call. I do not know how to query quota directly yet.
-				quota = false
-			}
-			p := buildLocation(loc)
-			result := "no result"
-			if p != nil {
-				result = loc.Results[0].Component.String()
-			}
-			fmt.Printf("geocoding %d/%d %s => %s => %s (quota: %d/%d)\n",
-				i+1, len(offers), offer.Location, c, result, loc.Rate.Remaining,
-				loc.Rate.Limit)
-			if p != nil {
-				offer.City = p.City
-				offer.County = p.County
-				offer.State = p.State
-				offer.Country = p.Country
-				found = true
-			}
-			time.Sleep(1 * time.Second)
+	offline := false
+	for _, offer := range offers {
+		pos, _, off, err := geocodeOffer(geocoder, offer.Location,
+			offline, minQuota)
+		if err != nil {
+			return rejected, err
 		}
-		if !found {
+		offline = off
+		if pos != nil {
+			offer.Geo = pos
+		} else {
 			rejected++
 		}
 	}

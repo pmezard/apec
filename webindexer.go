@@ -161,10 +161,11 @@ func (idx *Indexer) indexSome() error {
 				return err
 			}
 			if offer != nil {
-				_, _, err = geocodeOffer(idx.geocoder, offer, true)
+				loc, _, _, err := geocodeOffer(idx.geocoder, offer.Location, true, 0)
 				if err != nil {
 					return err
 				}
+				offer.Geo = loc
 				err = idx.index.Index(offer.Id, offer)
 				if err != nil {
 					return err
