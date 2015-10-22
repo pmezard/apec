@@ -125,6 +125,19 @@ func (s *SpatialIndex) FindNearest(lat, lon, maxDist float64) ([]datedOffer, err
 	return offers, nil
 }
 
+func (s *SpatialIndex) FindAll() []datedOffer {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	offers := make([]datedOffer, 0, len(s.known))
+	for _, loc := range s.known {
+		offers = append(offers, datedOffer{
+			Date: loc.Date.Format(time.RFC3339),
+			Id:   loc.Id,
+		})
+	}
+	return offers
+}
+
 var (
 	spatialCmd = app.Command("spatial", "create spatial index (for benchmarks)")
 )

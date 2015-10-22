@@ -44,7 +44,7 @@ func (s sortedDatedOffers) Less(i, j int) bool {
 }
 
 func formatOffers(templ *template.Template, store *Store, datedOffers []datedOffer,
-	query string, searchDuration time.Duration, w http.ResponseWriter,
+	where, what string, spatialDuration, textDuration time.Duration, w http.ResponseWriter,
 	r *http.Request) error {
 
 	start := time.Now()
@@ -86,15 +86,19 @@ func formatOffers(templ *template.Template, store *Store, datedOffers []datedOff
 		Offers            []*offerData
 		Displayed         int
 		Total             int
-		Query             string
-		SearchDuration    string
+		Where             string
+		What              string
+		SpatialDuration   string
+		TextDuration      string
 		RenderingDuration string
 	}{
 		Offers:            offers,
 		Displayed:         len(offers),
 		Total:             len(datedOffers),
-		Query:             query,
-		SearchDuration:    fmt.Sprintf("%0.3f", float64(searchDuration)/second),
+		Where:             where,
+		What:              what,
+		SpatialDuration:   fmt.Sprintf("%0.3f", float64(spatialDuration)/second),
+		TextDuration:      fmt.Sprintf("%0.3f", float64(textDuration)/second),
 		RenderingDuration: fmt.Sprintf("%0.3f", float64(end.Sub(start))/second),
 	}
 	h := w.Header()
@@ -132,6 +136,9 @@ func findOffersFromText(index bleve.Index, query string) ([]datedOffer, error) {
 func findOffersFromLocation(query string, spatial *SpatialIndex, geocoder *Geocoder) (
 	[]datedOffer, error) {
 
+	if query == "" {
+		return spatial.FindAll(), nil
+	}
 	parts := strings.Split(query, ",")
 	lat, lon, radius := float64(0), float64(0), float64(0)
 	if len(parts) == 2 {
@@ -175,24 +182,43 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	if err != nil {
 		return err
 	}
-	query := values.Get("q")
-	var datedOffers []datedOffer
-	prefix := "loc:"
-	start := time.Now()
-	if strings.HasPrefix(query, prefix) {
-		datedOffers, err = findOffersFromLocation(query[len(prefix):], spatial, geocoder)
-	} else {
-		datedOffers, err = findOffersFromText(index, query)
-	}
-	searchDuration := time.Now().Sub(start)
+	what := strings.TrimSpace(values.Get("what"))
+	where := strings.TrimSpace(values.Get("where"))
+
+	whereStart := time.Now()
+	offers, err := findOffersFromLocation(where, spatial, geocoder)
 	if err != nil {
 		return err
 	}
-	err = formatOffers(templ, store, datedOffers, query, searchDuration, w, r)
-	formatDuration := time.Now().Sub(start) - searchDuration
-	log.Printf("query '%s' returned %d entries in %.3fs, formatted in %.3fs",
-		query, len(datedOffers), float64(searchDuration)/float64(time.Second),
-		float64(formatDuration)/float64(time.Second))
+	whatStart := time.Now()
+	if len(what) > 0 && len(offers) > 0 {
+		whatOffers, err := findOffersFromText(index, what)
+		if err != nil {
+			return err
+		}
+		kept := map[string]bool{}
+		for _, o := range whatOffers {
+			kept[o.Id] = true
+		}
+		keptOffers := make([]datedOffer, 0, len(offers))
+		for _, o := range offers {
+			if kept[o.Id] {
+				keptOffers = append(keptOffers, o)
+			}
+		}
+		offers = keptOffers
+	}
+	formatStart := time.Now()
+	spatialDuration := whatStart.Sub(whereStart)
+	textDuration := formatStart.Sub(whereStart)
+	err = formatOffers(templ, store, offers, where, what, spatialDuration,
+		textDuration, w, r)
+	end := time.Now()
+	formatDuration := end.Sub(formatStart)
+	log.Printf("spatial '%s': %.3fs, text: '%s': %.3fs, format %d entries: %.3fs\n",
+		where, float64(spatialDuration)/float64(time.Second),
+		what, float64(textDuration)/float64(time.Second),
+		len(offers), float64(formatDuration)/float64(time.Second))
 	return err
 }
 
