@@ -201,7 +201,7 @@ func geocodeOffers(store *Store, geocoder *Geocoder, offers []*Offer,
 		}
 		offline = off
 		if !offline {
-			err = store.PutLocation(offer.Id, pos)
+			err = store.PutLocation(offer.Id, pos, offer.Date)
 			if err != nil {
 				return rejected, err
 			}

@@ -131,7 +131,7 @@ func TestOfferLocation(t *testing.T) {
 		City: "Paris",
 	}
 
-	err := store.PutLocation(id, loc)
+	err := store.PutLocation(id, loc, now)
 	if err == nil {
 		t.Fatalf("adding location to missing offers should have failed")
 	}
@@ -141,15 +141,15 @@ func TestOfferLocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = store.PutLocation(id, loc)
+	err = store.PutLocation(id, loc, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	loc2, ok, err := store.GetLocation(id)
+	loc2, date, err := store.GetLocation(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loc2 == nil || !ok {
+	if loc2 == nil || date.IsZero() {
 		t.Fatalf("unexpected nil location")
 	}
 
@@ -158,24 +158,24 @@ func TestOfferLocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	loc2, ok, err = store.GetLocation(id)
+	loc2, date, err = store.GetLocation(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loc2 != nil || ok {
+	if loc2 != nil || !date.IsZero() {
 		t.Fatal("location should have been reset by Put()")
 	}
 
 	// Test empty location
-	err = store.PutLocation(id, nil)
+	err = store.PutLocation(id, nil, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	loc2, ok, err = store.GetLocation(id)
+	loc2, date, err = store.GetLocation(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loc2 != nil || !ok {
+	if loc2 != nil || date.IsZero() {
 		t.Fatal("could not retrieve empty location")
 	}
 
@@ -184,11 +184,11 @@ func TestOfferLocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	loc2, ok, err = store.GetLocation(id)
+	loc2, date, err = store.GetLocation(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loc2 != nil || ok {
+	if loc2 != nil || !date.IsZero() {
 		t.Fatal("location should have been removed by Delete()")
 	}
 }

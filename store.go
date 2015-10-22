@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 )
@@ -19,16 +20,56 @@ var (
 	kvLocationsBucket   = []byte("l")
 	kvDeletedBucket     = []byte("d")
 	kvDeletedKeysBucket = []byte("dk")
+	storeVersion        = 2
 )
 
-func OpenStore(dir string) (*Store, error) {
-	db, err := OpenKVDB(filepath.Join(dir, "kv"), 0)
+func UpgradeStore(dir string) (*Store, error) {
+	created := false
+	path := filepath.Join(dir, "kv")
+	_, err := os.Stat(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+		created = true
+	}
+	db, err := OpenKVDB(path, 0)
 	if err != nil {
 		return nil, err
 	}
-	return &Store{
+	store := &Store{
 		db: db,
-	}, nil
+	}
+	if created {
+		err = store.SetVersion(storeVersion)
+		if err != nil {
+			store.Close()
+			return nil, err
+		}
+	}
+	return store, nil
+}
+
+func OpenStore(dir string) (*Store, error) {
+	store, err := UpgradeStore(dir)
+	if err != nil {
+		return nil, err
+	}
+	ok := false
+	defer func() {
+		if !ok {
+			store.Close()
+		}
+	}()
+	version, err := store.Version()
+	if err != nil {
+		return nil, err
+	}
+	if version != storeVersion {
+		return nil, fmt.Errorf("expected store version %d, got %d", storeVersion, version)
+	}
+	ok = true
+	return store, nil
 }
 
 func (s *Store) Close() error {
@@ -235,7 +276,7 @@ func (s *Store) SetVersion(version int) error {
 	return setKVDBVersion(s.db, kvOffersBucket, version)
 }
 
-func (s *Store) PutLocation(id string, loc *Location) error {
+func (s *Store) PutLocation(id string, loc *Location, date time.Time) error {
 	return s.db.Update(func(tx *Tx) error {
 		k := []byte(id)
 		data, err := tx.Get(kvOffersBucket, k)
@@ -252,6 +293,11 @@ func (s *Store) PutLocation(id string, loc *Location) error {
 			if err != nil {
 				return err
 			}
+			ts := date.Unix()
+			err = binary.Write(w, binary.LittleEndian, &ts)
+			if err != nil {
+				return err
+			}
 		} else {
 			// BUG: does kv support empty values?
 			err := w.WriteByte('\x00')
@@ -263,31 +309,47 @@ func (s *Store) PutLocation(id string, loc *Location) error {
 	})
 }
 
-func (s *Store) GetLocation(id string) (*Location, bool, error) {
+func (s *Store) GetLocation(id string) (*Location, time.Time, error) {
 	var p *Location
-	found := false
+	var date time.Time
 	err := s.db.View(func(tx *Tx) error {
 		data, err := tx.Get(kvLocationsBucket, []byte(id))
-		found = data != nil
 		if err != nil || len(data) <= 1 {
+			if len(data) == 1 {
+				date = time.Unix(1, 0)
+			}
 			return err
 		}
-		point, err := readBinaryLocation(bytes.NewBuffer(data))
+		r := bytes.NewBuffer(data)
+		point, err := readBinaryLocation(r)
 		if err != nil {
 			return err
 		}
+		ts := int64(0)
+		err = binary.Read(r, binary.LittleEndian, &ts)
+		if err != nil {
+			return err
+		}
+		date = time.Unix(ts, 0)
 		p = point
 		return nil
 	})
-	return p, found, err
+	return p, date, err
 }
 
-func (s *Store) ListLocations() ([]string, error) {
-	var err error
-	var ids []string
-	err = s.db.View(func(tx *Tx) error {
-		ids, err = tx.List(kvLocationsBucket)
+func (s *Store) DeleteLocations() error {
+	err := s.db.Update(func(tx *Tx) error {
+		ids, err := tx.List(kvLocationsBucket)
+		if err != nil {
+			return err
+		}
+		for _, id := range ids {
+			err = tx.Delete(kvLocationsBucket, []byte(id))
+			if err != nil {
+				return err
+			}
+		}
 		return err
 	})
-	return ids, err
+	return err
 }

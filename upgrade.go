@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 
 	"github.com/pmezard/apec/jstruct"
@@ -69,21 +70,35 @@ func upgradeGeocoderCache(path string) error {
 		return err
 	}
 	log.Printf("%d points migrated", points)
-	return next.Close()
+	err = next.Close()
+	if err != nil {
+		return err
+	}
+	err = os.RemoveAll(path)
+	if err != nil {
+		return err
+	}
+	return os.Rename(tmpDir, path)
 }
 
 func populateStoreLocations(geocoderDir, storeDir string) error {
-	store, err := OpenStore(storeDir)
+	store, err := UpgradeStore(storeDir)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 
 	version, err := store.Version()
-	if err != nil || version >= 1 {
+	if err != nil || version >= storeVersion {
 		return err
 	}
-	log.Printf("migrating store from %d to 1", version)
+	log.Printf("migrating store from %d to %d", version, storeVersion)
+	if version < storeVersion {
+		err = store.DeleteLocations()
+		if err != nil {
+			return err
+		}
+	}
 
 	geocoder, err := NewGeocoder("", geocoderDir)
 	if err != nil {
@@ -99,11 +114,11 @@ func populateStoreLocations(geocoderDir, storeDir string) error {
 		if (i+1)%1000 == 0 {
 			fmt.Printf("%d offers location cached\n", i+1)
 		}
-		_, ok, err := store.GetLocation(id)
-		if ok {
+		_, date, err := store.GetLocation(id)
+		if !date.IsZero() {
 			continue
 		}
-		offer, err := getStoreJsonOffer(store, id)
+		offer, err := getStoreOffer(store, id)
 		if err != nil {
 			return err
 		}
@@ -111,12 +126,12 @@ func populateStoreLocations(geocoderDir, storeDir string) error {
 		if err != nil {
 			return err
 		}
-		err = store.PutLocation(id, loc)
+		err = store.PutLocation(id, loc, offer.Date)
 		if err != nil {
 			return err
 		}
 	}
-	err = store.SetVersion(1)
+	err = store.SetVersion(storeVersion)
 	if err != nil {
 		return err
 	}
@@ -126,7 +141,11 @@ func populateStoreLocations(geocoderDir, storeDir string) error {
 func upgrade(cfg *Config) error {
 	err := upgradeGeocoderCache(cfg.Geocoder())
 	if err != nil {
-		return err
+		return fmt.Errorf("could not upgrade geocoder: %s", err)
 	}
-	return populateStoreLocations(cfg.Geocoder(), cfg.Store())
+	err = populateStoreLocations(cfg.Geocoder(), cfg.Store())
+	if err != nil {
+		return fmt.Errorf("could not upgrade store: %s", err)
+	}
+	return err
 }
