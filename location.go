@@ -198,9 +198,7 @@ func geocodeOffers(geocoder *Geocoder, offers []*Offer, minQuota int) (int, erro
 			return rejected, err
 		}
 		offline = off
-		if pos != nil {
-			offer.Geo = pos
-		} else {
+		if pos == nil {
 			rejected++
 		}
 	}

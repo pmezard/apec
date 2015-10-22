@@ -9,28 +9,25 @@ import (
 
 // Indexer is an online asynchronous indexer.
 type Indexer struct {
-	store    *Store
-	index    bleve.Index
-	queue    *IndexQueue
-	geocoder *Geocoder
-	reset    chan bool
-	work     chan bool
-	stop     chan chan bool
+	store *Store
+	index bleve.Index
+	queue *IndexQueue
+	reset chan bool
+	work  chan bool
+	stop  chan chan bool
 }
 
 // NewIndexer creates a new Indexer assuming it is the soler writer for
 // supplied store and index.
-func NewIndexer(store *Store, index bleve.Index, geocoder *Geocoder,
-	queue *IndexQueue) *Indexer {
+func NewIndexer(store *Store, index bleve.Index, queue *IndexQueue) *Indexer {
 
 	idx := &Indexer{
-		store:    store,
-		index:    index,
-		geocoder: geocoder,
-		queue:    queue,
-		reset:    make(chan bool, 1),
-		work:     make(chan bool, 1),
-		stop:     make(chan chan bool),
+		store: store,
+		index: index,
+		queue: queue,
+		reset: make(chan bool, 1),
+		work:  make(chan bool, 1),
+		stop:  make(chan chan bool),
 	}
 	go idx.dispatch()
 	return idx
@@ -161,11 +158,6 @@ func (idx *Indexer) indexSome() error {
 				return err
 			}
 			if offer != nil {
-				loc, _, _, err := geocodeOffer(idx.geocoder, offer.Location, true, 0)
-				if err != nil {
-					return err
-				}
-				offer.Geo = loc
 				err = idx.index.Index(offer.Id, offer)
 				if err != nil {
 					return err

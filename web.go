@@ -339,7 +339,7 @@ func web(cfg *Config) error {
 		return err
 	}
 	defer queue.Close()
-	indexer := NewIndexer(store, index, geocoder, queue)
+	indexer := NewIndexer(store, index, queue)
 	defer indexer.Close()
 	indexer.Sync()
 

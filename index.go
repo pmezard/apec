@@ -80,8 +80,6 @@ type Offer struct {
 	Date      time.Time `json:"date"`
 	URL       string
 	Location  string `json:"location"`
-
-	Geo *Location
 }
 
 const (
