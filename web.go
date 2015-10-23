@@ -389,7 +389,6 @@ func web(cfg *Config) error {
 	spatialIndexer.Sync()
 
 	geocodingHandler := NewGeocodingHandler(store, geocoder, spatial)
-	geocodingHandler.Geocode()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		handleQuery(templ, store, index, spatial, geocoder, w, r)
