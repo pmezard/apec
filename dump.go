@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/blevesearch/bleve"
 )
 
 var (
@@ -110,4 +112,21 @@ func changesFn(cfg *Config) error {
 		return err
 	}
 	return printChanges(os.Stdout, store, false)
+}
+
+var (
+	debugQueryCmd   = app.Command("debugquery", "debug bleve queries")
+	debugQueryQuery = debugQueryCmd.Arg("query", "query to debug").Required().String()
+)
+
+func debugQueryFn(cfg *Config) error {
+	index, err := bleve.Open(cfg.Index())
+	if err != nil {
+		return err
+	}
+	defer index.Close()
+	q := bleve.NewQueryStringQuery(*debugQueryQuery)
+	s, err := bleve.DumpQuery(index.Mapping(), q)
+	fmt.Println(s)
+	return err
 }
