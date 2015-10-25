@@ -133,7 +133,7 @@ func checkKVDBContent(t *testing.T, db *KVDB, content DBContent) {
 }
 
 func testCRUD(t *testing.T, db *KVDB) {
-	//empty := []byte("empty")
+	empty := []byte("empty")
 	p1 := []byte("prefix1")
 	p2 := []byte("prefix2")
 	k1 := []byte("some key 1")
@@ -175,22 +175,20 @@ func testCRUD(t *testing.T, db *KVDB) {
 		return nil
 	})
 
-	/*
-		// Using empty values is fine
-		checkUpdate(t, db, func(tx *Tx) error {
-			return tx.Put(p1, empty, []byte{})
-		})
-		checkUpdate(t, db, func(tx *Tx) error {
-			data, err := tx.Get(p1, empty)
-			if err != nil {
-				return err
-			}
-			if data == nil || len(data) != 0 {
-				t.Fatalf("empty value expected, got %+v, isnil: %v", data, data == nil)
-			}
-			return tx.Delete(p1, empty)
-		})
-	*/
+	// Using empty values is fine
+	checkUpdate(t, db, func(tx *Tx) error {
+		return tx.Put(p1, empty, nil)
+	})
+	checkUpdate(t, db, func(tx *Tx) error {
+		data, err := tx.Get(p1, empty)
+		if err != nil {
+			return err
+		}
+		if data == nil || len(data) != 0 {
+			t.Fatalf("empty value expected, got %+v, isnil: %v", data, data == nil)
+		}
+		return tx.Delete(p1, empty)
+	})
 
 	// Add 3 values in 2 different tables
 	checkKVDBPut(t, db,

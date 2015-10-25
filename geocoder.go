@@ -19,8 +19,9 @@ import (
 var (
 	QuotaError = errors.New("payment required")
 
-	geoCacheBucket = []byte("c")
-	geoPointBucket = []byte("p")
+	geoCacheBucket  = []byte("c")
+	geoPointBucket  = []byte("p")
+	geocoderVersion = 2
 )
 
 type Location struct {
@@ -153,12 +154,6 @@ func (c *Cache) Put(key string, data []byte, pos *Location) error {
 			if err != nil {
 				return err
 			}
-		} else {
-			// BUG: does kv support empty values?
-			err = w.WriteByte('\x00')
-			if err != nil {
-				return err
-			}
 		}
 		return tx.Put(geoPointBucket, k, w.Bytes())
 	})
@@ -180,7 +175,7 @@ func (c *Cache) GetLocation(key string) (*Location, bool, error) {
 	err := c.db.View(func(tx *Tx) error {
 		data, err := tx.Get(geoPointBucket, []byte(key))
 		found = data != nil
-		if err != nil || len(data) <= 1 {
+		if err != nil || len(data) == 0 {
 			return err
 		}
 		point, err := readBinaryLocation(bytes.NewBuffer(data))
@@ -211,6 +206,10 @@ func (c *Cache) SetVersion(version int) error {
 	return setKVDBVersion(c.db, geoCacheBucket, version)
 }
 
+func (c *Cache) FixEmptyValues() (int, error) {
+	return c.db.FixEmptyValues(geoPointBucket)
+}
+
 type Geocoder struct {
 	key   string
 	cache *Cache
@@ -230,8 +229,9 @@ func NewGeocoder(key, cacheDir string) (*Geocoder, error) {
 	if err != nil {
 		return nil, err
 	}
-	if version != 1 {
-		return nil, fmt.Errorf("please upgrade geocoder cache from %d to %d", version, 1)
+	if version != geocoderVersion {
+		return nil, fmt.Errorf("please upgrade geocoder cache from %d to %d",
+			version, geocoderVersion)
 	}
 	g := &Geocoder{
 		key:   key,

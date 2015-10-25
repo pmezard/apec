@@ -57,7 +57,11 @@ func (tx *Tx) Get(prefix, key []byte) ([]byte, error) {
 		if data == nil {
 			break
 		}
-		buf = append(buf, data...)
+		if buf == nil && len(data) == 0 {
+			buf = []byte{}
+		} else {
+			buf = append(buf, data...)
+		}
 		if len(data) != tx.maxSize {
 			break
 		} else {
@@ -251,6 +255,29 @@ func (db *KVDB) Update(action func(tx *Tx) error) error {
 
 func (db *KVDB) Path() string {
 	return db.db.Name()
+}
+
+func (db *KVDB) FixEmptyValues(prefix []byte) (int, error) {
+	fixed := 0
+	err := db.Update(func(tx *Tx) error {
+		keys, err := tx.List(prefix)
+		if err != nil {
+			return err
+		}
+		for _, key := range keys {
+			k := []byte(key)
+			data, err := tx.Get(prefix, k)
+			if len(data) == 1 {
+				err = tx.Put(prefix, k, nil)
+				if err != nil {
+					return err
+				}
+				fixed++
+			}
+		}
+		return nil
+	})
+	return fixed, err
 }
 
 func getKVDBVersion(db *KVDB, prefix []byte) (int, error) {

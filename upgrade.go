@@ -2,13 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
-	"os"
-	"path/filepath"
-
-	"github.com/pmezard/apec/jstruct"
-	"github.com/pquerna/ffjson/ffjson"
 )
 
 var (
@@ -22,63 +16,20 @@ func upgradeGeocoderCache(path string) error {
 	}
 	defer cache.Close()
 	version, err := cache.Version()
-	if err != nil || version >= 1 {
+	if err != nil || version >= geocoderVersion {
 		return err
 	}
-	log.Printf("migrating geocoder from %d", version)
-
-	tmpDir, err := ioutil.TempDir(filepath.Dir(path), "geocoder-")
+	log.Printf("migrating geocoder from %d to %d", version, geocoderVersion)
+	fixed, err := cache.FixEmptyValues()
 	if err != nil {
 		return err
 	}
-	next, err := OpenCache(tmpDir)
+	err = cache.SetVersion(geocoderVersion)
 	if err != nil {
 		return err
 	}
-	defer next.Close()
-
-	// Migrate all entries, with cached lat/lon
-	keys, err := cache.List()
-	if err != nil {
-		return err
-	}
-	points := 0
-	for i, key := range keys {
-		if (i+1)%1000 == 0 {
-			log.Printf("%d/%d locations migrated\n", i+1, len(keys))
-		}
-		data, err := cache.Get(key)
-		if err != nil {
-			return err
-		}
-		loc := &jstruct.Location{}
-		err = ffjson.Unmarshal(data, loc)
-		if err != nil {
-			return err
-		}
-		p := buildLocation(loc)
-		if p != nil {
-			points++
-		}
-		err = next.Put(key, data, p)
-		if err != nil {
-			return err
-		}
-	}
-	err = next.SetVersion(1)
-	if err != nil {
-		return err
-	}
-	log.Printf("%d points migrated", points)
-	err = next.Close()
-	if err != nil {
-		return err
-	}
-	err = os.RemoveAll(path)
-	if err != nil {
-		return err
-	}
-	return os.Rename(tmpDir, path)
+	log.Printf("%d values fixed\n", fixed)
+	return cache.Close()
 }
 
 func populateStoreLocations(geocoderDir, storeDir string) error {
@@ -89,11 +40,11 @@ func populateStoreLocations(geocoderDir, storeDir string) error {
 	defer store.Close()
 
 	version, err := store.Version()
-	if err != nil || version >= storeVersion {
+	if err != nil || version >= 2 {
 		return err
 	}
-	log.Printf("migrating store from %d to %d", version, storeVersion)
-	if version < storeVersion {
+	log.Printf("migrating store from %d to %d", version, 2)
+	if version < 2 {
 		err = store.DeleteLocations()
 		if err != nil {
 			return err
@@ -131,10 +82,34 @@ func populateStoreLocations(geocoderDir, storeDir string) error {
 			return err
 		}
 	}
-	err = store.SetVersion(storeVersion)
+	err = store.SetVersion(2)
 	if err != nil {
 		return err
 	}
+	return store.Close()
+}
+
+func fixStoreEmptyValues(storeDir string) error {
+	store, err := UpgradeStore(storeDir)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	version, err := store.Version()
+	if err != nil || version >= 3 {
+		return err
+	}
+	log.Printf("migrating store from %d to %d", version, 3)
+	fixed, err := store.FixEmptyValues()
+	if err != nil {
+		return err
+	}
+	err = store.SetVersion(3)
+	if err != nil {
+		return err
+	}
+	log.Printf("%d store empty values fixed\n", fixed)
 	return store.Close()
 }
 
@@ -146,6 +121,10 @@ func upgrade(cfg *Config) error {
 	err = populateStoreLocations(cfg.Geocoder(), cfg.Store())
 	if err != nil {
 		return fmt.Errorf("could not upgrade store: %s", err)
+	}
+	err = fixStoreEmptyValues(cfg.Store())
+	if err != nil {
+		return err
 	}
 	return err
 }

@@ -20,7 +20,7 @@ var (
 	kvLocationsBucket   = []byte("l")
 	kvDeletedBucket     = []byte("d")
 	kvDeletedKeysBucket = []byte("dk")
-	storeVersion        = 2
+	storeVersion        = 3
 )
 
 func UpgradeStore(dir string) (*Store, error) {
@@ -298,12 +298,6 @@ func (s *Store) PutLocation(id string, loc *Location, date time.Time) error {
 			if err != nil {
 				return err
 			}
-		} else {
-			// BUG: does kv support empty values?
-			err := w.WriteByte('\x00')
-			if err != nil {
-				return err
-			}
 		}
 		return tx.Put(kvLocationsBucket, k, w.Bytes())
 	})
@@ -314,8 +308,8 @@ func (s *Store) GetLocation(id string) (*Location, time.Time, error) {
 	var date time.Time
 	err := s.db.View(func(tx *Tx) error {
 		data, err := tx.Get(kvLocationsBucket, []byte(id))
-		if err != nil || len(data) <= 1 {
-			if len(data) == 1 {
+		if err != nil || len(data) == 0 {
+			if data != nil {
 				date = time.Unix(1, 0)
 			}
 			return err
@@ -352,4 +346,8 @@ func (s *Store) DeleteLocations() error {
 		return err
 	})
 	return err
+}
+
+func (s *Store) FixEmptyValues() (int, error) {
+	return s.db.FixEmptyValues(kvLocationsBucket)
 }
