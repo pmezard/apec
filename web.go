@@ -192,12 +192,15 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	if err != nil {
 		return err
 	}
+	spatialCount := len(offers)
 	whatStart := time.Now()
+	textCount := 0
 	if len(what) > 0 && len(offers) > 0 {
 		whatOffers, err := findOffersFromText(index, what)
 		if err != nil {
 			return err
 		}
+		textCount = len(whatOffers)
 		kept := map[string]bool{}
 		for _, o := range whatOffers {
 			kept[o.Id] = true
@@ -217,9 +220,10 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 		textDuration, w, r)
 	end := time.Now()
 	formatDuration := end.Sub(formatStart)
-	log.Printf("spatial '%s': %.3fs, text: '%s': %.3fs, format %d entries: %.3fs\n",
-		where, float64(spatialDuration)/float64(time.Second),
-		what, float64(textDuration)/float64(time.Second),
+	log.Printf("spatial '%s': %d in %.3fs, text: '%s': %d in %.3fs, "+
+		"format: %d in %.3fs\n",
+		where, spatialCount, float64(spatialDuration)/float64(time.Second),
+		what, textCount, float64(textDuration)/float64(time.Second),
 		len(offers), float64(formatDuration)/float64(time.Second))
 	return err
 }
