@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/analysis/tokenizers/exception"
+	"github.com/blevesearch/bleve/analysis/tokenizers/unicode"
 )
 
 var (
@@ -129,4 +132,23 @@ func debugQueryFn(cfg *Config) error {
 	s, err := bleve.DumpQuery(index.Mapping(), q)
 	fmt.Println(s)
 	return err
+}
+
+var (
+	analyzeCmd = app.Command("analyze", "process input with bleve analyzer")
+	analyzeArg = analyzeCmd.Arg("text", "text to analyze").Required().String()
+)
+
+func analyzeFn(cfg *Config) error {
+	reExc, err := regexp.Compile(`(?i)c\+\+`)
+	if err != nil {
+		return err
+	}
+	uni := unicode.NewUnicodeTokenizer()
+	tokenizer := exception.NewExceptionsTokenizer(reExc, uni)
+	tokens := tokenizer.Tokenize([]byte(*analyzeArg))
+	for _, t := range tokens {
+		fmt.Println(t)
+	}
+	return nil
 }

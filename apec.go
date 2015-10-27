@@ -72,6 +72,8 @@ func dispatch() error {
 		return spatialFn(cfg)
 	case debugQueryCmd.FullCommand():
 		return debugQueryFn(cfg)
+	case analyzeCmd.FullCommand():
+		return analyzeFn(cfg)
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
 }
