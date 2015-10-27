@@ -107,12 +107,24 @@ func formatOffers(templ *template.Template, store *Store, datedOffers []datedOff
 	return nil
 }
 
+func makeSearchQuery(query string) bleve.Query {
+	conditions := []bleve.Query{}
+	for _, p := range strings.Fields(query) {
+		conditions = append(conditions,
+			bleve.NewDisjunctionQueryMin([]bleve.Query{
+				bleve.NewMatchQuery(p).SetField("html"),
+				bleve.NewMatchQuery(p).SetField("title"),
+			}, 1))
+	}
+	return bleve.NewConjunctionQuery(conditions)
+}
+
 func findOffersFromText(index bleve.Index, query string) ([]datedOffer, error) {
 	if query == "" {
 		return nil, nil
 	}
 	datedOffers := []datedOffer{}
-	q := bleve.NewQueryStringQuery(query)
+	q := makeSearchQuery(query)
 	rq := bleve.NewSearchRequest(q)
 	rq.Size = 20000
 	rq.Fields = []string{"date"}

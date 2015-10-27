@@ -65,7 +65,7 @@ func search(cfg *Config) error {
 		return err
 	}
 	defer index.Close()
-	q := bleve.NewQueryStringQuery(*searchQuery)
+	q := makeSearchQuery(*searchQuery)
 	rq := bleve.NewSearchRequest(q)
 	rq.Size = 100
 	ids := []string{}

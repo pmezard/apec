@@ -12,6 +12,7 @@ import (
 	"github.com/blevesearch/bleve/analysis/char_filters/html_char_filter"
 	"github.com/blevesearch/bleve/analysis/language/fr"
 	"github.com/blevesearch/bleve/analysis/token_filters/lower_case_filter"
+	"github.com/blevesearch/bleve/analysis/tokenizers/exception"
 	bleveuni "github.com/blevesearch/bleve/analysis/tokenizers/unicode"
 	"github.com/blevesearch/bleve/index/store/boltdb"
 	"github.com/blevesearch/bleve/index/upside_down"
@@ -149,6 +150,17 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 		return nil, err
 	}
 
+	m := bleve.NewIndexMapping()
+	apecName := "apec"
+	err = m.AddCustomTokenizer(apecName, map[string]interface{}{
+		"type":       exception.Name,
+		"exceptions": []string{`(?i)c\+\+`},
+		"tokenizer":  bleveuni.Name,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	frTokens := []string{
 		lower_case_filter.Name,
 		fr.ElisionName,
@@ -157,7 +169,7 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	}
 	fr := map[string]interface{}{
 		"type":          custom_analyzer.Name,
-		"tokenizer":     bleveuni.Name,
+		"tokenizer":     apecName,
 		"token_filters": frTokens,
 	}
 	frHtml := map[string]interface{}{
@@ -165,10 +177,9 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 		"char_filters": []string{
 			html_char_filter.Name,
 		},
-		"tokenizer":     bleveuni.Name,
+		"tokenizer":     apecName,
 		"token_filters": frTokens,
 	}
-	m := bleve.NewIndexMapping()
 	err = m.AddCustomAnalyzer("fr", fr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register analyzer fr: %s", err)
