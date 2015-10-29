@@ -450,5 +450,12 @@ func web(cfg *Config) error {
 		w.Write([]byte("OK"))
 	})
 	http.Handle("/geocode", geocodingHandler)
+
+	http.HandleFunc("/panic", func(w http.ResponseWriter, r *http.Request) {
+		// Evade HTTP handler recover
+		go func() {
+			panic("now")
+		}()
+	})
 	return http.ListenAndServe(*webHttp, nil)
 }
