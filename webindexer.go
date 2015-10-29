@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/blevesearch/bleve"
 )
@@ -63,11 +64,13 @@ func (idx *Indexer) dispatch() {
 			idx.signalWork()
 		case <-idx.work:
 			log.Printf("indexing documents, %d updates remaining", idx.queue.Size())
-			err := idx.indexSome()
+			start := time.Now()
+			indexed, err := idx.indexSome()
 			if err != nil {
 				log.Printf("error: indexation failed: %s", err)
 			}
-			log.Printf("indexation done")
+			speed := float64(indexed) / (float64(time.Since(start)) / float64(time.Second))
+			log.Printf("indexation done, %.1f/s", speed)
 		case done := <-idx.stop:
 			close(done)
 			return
@@ -141,41 +144,46 @@ func (idx *Indexer) signalWork() {
 	}
 }
 
-func (idx *Indexer) indexSome() error {
-	count := 10
+func (idx *Indexer) indexOne(q Queued) error {
+	if q.Op == AddOp {
+		offer, err := getStoreOffer(idx.store, q.Id)
+		if err != nil {
+			return err
+		}
+		if offer != nil {
+			err = idx.index.Index(offer.Id, offer)
+			if err != nil {
+				return err
+			}
+		}
+	} else if q.Op == RemoveOp {
+		err := idx.index.Delete(q.Id)
+		if err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("unknown operation: %v", q.Op)
+	}
+	return idx.queue.DeleteMany(1)
+}
+
+func (idx *Indexer) indexSome() (int, error) {
+	count := 50
 	queued, err := idx.queue.FetchMany(count)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if len(queued) >= count {
 		idx.signalWork()
 	}
+	indexed := 0
 	for _, q := range queued {
-		if q.Op == AddOp {
-			log.Printf("indexing %s", q.Id)
-			offer, err := getStoreOffer(idx.store, q.Id)
-			if err != nil {
-				return err
-			}
-			if offer != nil {
-				err = idx.index.Index(offer.Id, offer)
-				if err != nil {
-					return err
-				}
-			}
-		} else if q.Op == RemoveOp {
-			log.Printf("deleting %s", q.Id)
-			err = idx.index.Delete(q.Id)
-			if err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("unknown operation: %v", q.Op)
-		}
-		err = idx.queue.DeleteMany(1)
+		err := idx.indexOne(q)
 		if err != nil {
-			return err
+			log.Printf("error: could not index %s: %s", q.Id, err)
+			return 0, err
 		}
+		indexed++
 	}
-	return nil
+	return indexed, nil
 }
