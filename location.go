@@ -76,6 +76,8 @@ var (
 		nfdString("agence de"),
 		nfdString("agence"),
 		nfdString("basé"),
+		nfdString("régions"),
+		nfdString("région"),
 	}
 )
 
