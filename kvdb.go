@@ -39,6 +39,10 @@ func (keys *KVDBKeys) Next() []byte {
 	return keys.buf
 }
 
+func sizePrefix(prefix []byte) []byte {
+	return append(prefix, '-', 'n')
+}
+
 type Tx struct {
 	db      *kv.DB
 	maxSize int
@@ -109,6 +113,11 @@ func (tx *Tx) Put(prefix, key, value []byte) error {
 	keys := NewKVDBKeys(prefix, key)
 	buf := make([]byte, tx.maxSize)
 
+	// Previous data chain may be longer than the new one
+	err := tx.Delete(prefix, key)
+	if err != nil {
+		return err
+	}
 	for {
 		data := buf
 		if len(value) >= len(data) {
@@ -129,7 +138,8 @@ func (tx *Tx) Put(prefix, key, value []byte) error {
 			break
 		}
 	}
-	return nil
+	_, err = tx.db.Inc(sizePrefix(prefix), 1)
+	return err
 }
 
 func (tx *Tx) Delete(prefix, key []byte) error {
@@ -152,6 +162,10 @@ func (tx *Tx) Delete(prefix, key []byte) error {
 			return err
 		}
 		if len(data) < len(buf) {
+			_, err := tx.db.Inc(sizePrefix(prefix), -1)
+			if err != nil {
+				return err
+			}
 			break
 		}
 	}
@@ -175,6 +189,80 @@ func (tx *Tx) IncSeq(prefix []byte, delta int64) (int64, error) {
 
 func (tx *Tx) GetSeq(prefix []byte) (int64, error) {
 	return tx.inc(prefix, 0)
+}
+
+func (tx *Tx) Size(prefix []byte) (int64, error) {
+	return tx.db.Inc(sizePrefix(prefix), 0)
+}
+
+func (tx *Tx) ListPrefixes() ([][]byte, error) {
+	enum, err := tx.db.SeekFirst()
+	if err != nil {
+		return nil, err
+	}
+	prefixes := [][]byte{}
+	prev := []byte{}
+	for {
+		k, _, err := enum.Next()
+		if err != nil {
+			if err != io.EOF {
+				return nil, err
+			}
+			break
+		}
+		pos := bytes.IndexByte(k, 0)
+		if pos < 0 {
+			continue
+		}
+		if bytes.Equal(prev, k[:pos]) {
+			continue
+		}
+		prev = make([]byte, pos)
+		copy(prev, k[:pos])
+		prefixes = append(prefixes, prev)
+	}
+	return prefixes, nil
+}
+
+func (tx *Tx) UpdateSize() error {
+	if !tx.write {
+		panic("calling Tx.UpdateSize in a read-only transaction")
+	}
+	prefixes, err := tx.ListPrefixes()
+	if err != nil {
+		return err
+	}
+	for _, p := range prefixes {
+		p = append(p, 0)
+		enum, _, err := tx.db.Seek(p)
+		if err != nil {
+			return err
+		}
+		count := int64(0)
+		for {
+			k, _, err := enum.Next()
+			if err != nil {
+				if err != io.EOF {
+					return err
+				}
+				break
+			}
+			if !bytes.HasPrefix(k, p) {
+				continue
+			}
+			count++
+		}
+		szPrefix := sizePrefix(p)
+		size, err := tx.db.Inc(szPrefix, 0)
+		if err != nil {
+			return err
+		}
+		_, err = tx.db.Inc(szPrefix, size-count)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type KVDB struct {

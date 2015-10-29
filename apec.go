@@ -74,6 +74,8 @@ func dispatch() error {
 		return debugQueryFn(cfg)
 	case analyzeCmd.FullCommand():
 		return analyzeFn(cfg)
+	case kvdbPrefixesCmd.FullCommand():
+		return kvdbPrefixesFn(cfg)
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
 }

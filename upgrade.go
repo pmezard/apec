@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"path/filepath"
 )
 
 var (
@@ -113,6 +114,36 @@ func fixStoreEmptyValues(storeDir string) error {
 	return store.Close()
 }
 
+func fixStoreSize(path string) error {
+	db, err := OpenKVDB(path, 0)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	err = db.Update(func(tx *Tx) error {
+		return tx.UpdateSize()
+	})
+	if err != nil {
+		return err
+	}
+	return db.Close()
+}
+
+func fixStoreSizes(cfg *Config) error {
+	paths := []string{
+		cfg.Geocoder(),
+		cfg.Store(),
+	}
+	for _, path := range paths {
+		log.Printf("upgrade size of %s", path)
+		err := fixStoreSize(filepath.Join(path, "kv"))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func upgrade(cfg *Config) error {
 	err := upgradeGeocoderCache(cfg.Geocoder())
 	if err != nil {
@@ -123,6 +154,10 @@ func upgrade(cfg *Config) error {
 		return fmt.Errorf("could not upgrade store: %s", err)
 	}
 	err = fixStoreEmptyValues(cfg.Store())
+	if err != nil {
+		return err
+	}
+	err = fixStoreSizes(cfg)
 	if err != nil {
 		return err
 	}

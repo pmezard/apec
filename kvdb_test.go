@@ -107,7 +107,15 @@ func checkKVDBContent(t *testing.T, db *KVDB, content DBContent) {
 			if err != nil {
 				return fmt.Errorf("could not list keys for %s: %s", name, err)
 			}
+			size, err := tx.Size(prefix.Name)
+			if err != nil {
+				return fmt.Errorf("could not get size for: %s", name)
+			}
 			got := strings.Join(keys, ",")
+			if int(size) != len(keys) {
+				return fmt.Errorf("size and list size do not match: %d != %d\n  %s",
+					size, len(keys), got)
+			}
 			parts := []string{}
 			for _, k := range prefix.KV {
 				parts = append(parts, string(k.Key))
@@ -317,4 +325,43 @@ func TestKVDBInc(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+func TestKVDBListPrefixes(t *testing.T) {
+	db := createTempKVDB(t, 100)
+	defer closeAndDeleteKVDB(t, db)
+
+	// Fill the db with various prefixes and other keys
+	p1 := []byte("prefix1")
+	p2 := []byte("prefix2")
+	key := []byte("some key")
+	data := []byte("some data")
+	checkUpdate(t, db, func(tx *Tx) error {
+		_, err := tx.IncSeq(p1, 2)
+		if err != nil {
+			t.Fatalf("could not increment from nothing: %s", err)
+		}
+		err = tx.Put(p1, key, data)
+		if err != nil {
+			return err
+		}
+		return tx.Put(p2, key, data)
+	})
+
+	var prefixes []string
+	err := db.View(func(tx *Tx) error {
+		values, err := tx.ListPrefixes()
+		for _, v := range values {
+			prefixes = append(prefixes, string(v))
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := strings.Join(prefixes, ", ")
+	expected := "prefix1, prefix2"
+	if s != expected {
+		t.Fatalf("unexpected prefixes: %s != %s", s, expected)
+	}
 }

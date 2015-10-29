@@ -152,3 +152,27 @@ func analyzeFn(cfg *Config) error {
 	}
 	return nil
 }
+
+var (
+	kvdbPrefixesCmd = app.Command("debugkvdbprefixes", "print kvdb store prefixes")
+	kvdbPrefixesArg = kvdbPrefixesCmd.Arg("path", "path to store").Required().String()
+)
+
+func kvdbPrefixesFn(cfg *Config) error {
+	db, err := OpenKVDB(*kvdbPrefixesArg, 0)
+	if err != nil {
+		return err
+	}
+	var prefixes [][]byte
+	err = db.View(func(tx *Tx) error {
+		prefixes, err = tx.ListPrefixes()
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	for _, p := range prefixes {
+		fmt.Println(string(p))
+	}
+	return nil
+}
