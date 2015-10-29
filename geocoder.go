@@ -25,12 +25,13 @@ var (
 )
 
 type Location struct {
-	City    string
-	County  string
-	State   string
-	Country string
-	Lat     float64
-	Lon     float64
+	City     string
+	County   string
+	State    string
+	Country  string
+	PostCode string
+	Lat      float64
+	Lon      float64
 }
 
 func (l *Location) String() string {
@@ -39,6 +40,7 @@ func (l *Location) String() string {
 		Value string
 	}{
 		{"city", l.City},
+		{"postcode", l.PostCode},
 		{"county", l.County},
 		{"state", l.State},
 		{"country", l.Country},
@@ -64,12 +66,13 @@ func buildLocation(loc *jstruct.Location) *Location {
 		r := loc.Results[0].Component
 		g := loc.Results[0].Geometry
 		p = &Location{
-			City:    r.City,
-			County:  r.County,
-			State:   r.State,
-			Country: r.Country,
-			Lat:     g.Lat,
-			Lon:     g.Lon,
+			City:     r.City,
+			PostCode: r.PostCode,
+			County:   r.County,
+			State:    r.State,
+			Country:  r.Country,
+			Lat:      g.Lat,
+			Lon:      g.Lon,
 		}
 	}
 	return p
