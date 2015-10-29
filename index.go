@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -144,17 +146,31 @@ func convertOffers(offers []*jstruct.JsonOffer) ([]*Offer, error) {
 	return result, nil
 }
 
+var (
+	indexExceptions = []string{
+		"c++",
+		"c#",
+	}
+)
+
 func NewOfferIndex(dir string) (bleve.Index, error) {
 	err := os.RemoveAll(dir)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
+	parts := []string{}
+	for _, exc := range indexExceptions {
+		parts = append(parts, regexp.QuoteMeta(exc))
+	}
+	pattern := strings.Join(parts, "|")
+	pattern = "(?i)(?:" + pattern + ")"
+
 	m := bleve.NewIndexMapping()
 	apecName := "apec"
 	err = m.AddCustomTokenizer(apecName, map[string]interface{}{
 		"type":       exception.Name,
-		"exceptions": []string{`(?i)c\+\+`},
+		"exceptions": []string{pattern},
 		"tokenizer":  bleveuni.Name,
 	})
 	if err != nil {
