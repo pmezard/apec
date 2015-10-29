@@ -3,37 +3,23 @@ package main
 import (
 	"encoding/binary"
 	"encoding/json"
-
-	"github.com/boltdb/bolt"
 )
 
 // IndexQueue represents a persistent sequence of indexing operations to
 // perform.
 type IndexQueue struct {
-	db *bolt.DB
+	db *KVDB
 }
 
 var (
-	queuedBucket = []byte("queued")
-	minSeqBucket = []byte("seq")
-	minSeqKey    = []byte("minseq")
+	queuedBucket = []byte("q")
+	minSeqBucket = []byte("s")
+	minSeqKey    = []byte("m")
 )
 
 func OpenIndexQueue(path string) (*IndexQueue, error) {
-	db, err := bolt.Open(path, 0666, nil)
+	db, err := OpenKVDB(path, 0)
 	if err != nil {
-		return nil, err
-	}
-	err = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(queuedBucket)
-		if err != nil {
-			return err
-		}
-		_, err = tx.CreateBucketIfNotExists(minSeqBucket)
-		return err
-	})
-	if err != nil {
-		db.Close()
 		return nil, err
 	}
 	return &IndexQueue{
@@ -61,35 +47,35 @@ type Queued struct {
 	Op  Op     `json:"op"`
 }
 
-func (q *IndexQueue) getMinSeq(tx *bolt.Tx) (uint64, bool) {
-	b := tx.Bucket(minSeqBucket)
-	data := b.Get(minSeqKey)
-	if data == nil {
-		return 0, false
+func (q *IndexQueue) getMinSeq(tx *Tx) (uint64, bool, error) {
+	data, err := tx.Get(minSeqBucket, minSeqKey)
+	if err != nil || data == nil {
+		return 0, false, err
 	}
 	seq, _ := binary.Uvarint(data)
-	return seq, seq != 0
+	return seq, seq != 0, nil
 }
 
-func (q *IndexQueue) putMinSeq(tx *bolt.Tx, seqBytes []byte) error {
-	b := tx.Bucket(minSeqBucket)
-	return b.Put(minSeqKey, seqBytes)
+func (q *IndexQueue) putMinSeq(tx *Tx, seqBytes []byte) error {
+	return tx.Put(minSeqBucket, minSeqKey, seqBytes)
 }
 
 func (q *IndexQueue) QueueMany(items []Queued) error {
-	return q.db.Update(func(tx *bolt.Tx) error {
-		var err error
-		b := tx.Bucket(queuedBucket)
+	return q.db.Update(func(tx *Tx) error {
 		for i, item := range items {
-			item.Seq, err = b.NextSequence()
+			seq, err := tx.IncSeq(queuedBucket, 1)
 			if err != nil {
 				return err
 			}
+			item.Seq = uint64(seq)
 			buf := make([]byte, binary.MaxVarintLen64)
 			n := binary.PutUvarint(buf, item.Seq)
 			if i == 0 {
 				// Maybe min seq is not set yet
-				_, ok := q.getMinSeq(tx)
+				_, ok, err := q.getMinSeq(tx)
+				if err != nil {
+					return err
+				}
 				if !ok {
 					err = q.putMinSeq(tx, buf[:n])
 					if err != nil {
@@ -101,7 +87,7 @@ func (q *IndexQueue) QueueMany(items []Queued) error {
 			if err != nil {
 				return err
 			}
-			err = b.Put(buf[:n], data)
+			err = tx.Put(queuedBucket, buf[:n], data)
 			if err != nil {
 				return err
 			}
@@ -112,22 +98,24 @@ func (q *IndexQueue) QueueMany(items []Queued) error {
 
 func (q *IndexQueue) FetchMany(count int) ([]Queued, error) {
 	queued := []Queued{}
-	err := q.db.View(func(tx *bolt.Tx) error {
-		seq, ok := q.getMinSeq(tx)
-		if !ok {
+	err := q.db.View(func(tx *Tx) error {
+		seq, ok, err := q.getMinSeq(tx)
+		if !ok || err != nil {
 			// Nothing to fetch
-			return nil
+			return err
 		}
 		item := Queued{}
-		b := tx.Bucket(queuedBucket)
 		for ; count > 0; count-- {
 			buf := make([]byte, binary.MaxVarintLen64)
 			n := binary.PutUvarint(buf, seq)
-			data := b.Get(buf[:n])
+			data, err := tx.Get(queuedBucket, buf[:n])
+			if err != nil {
+				return err
+			}
 			if data == nil {
 				break
 			}
-			err := json.Unmarshal(data, &item)
+			err = json.Unmarshal(data, &item)
 			if err != nil {
 				return err
 			}
@@ -140,20 +128,22 @@ func (q *IndexQueue) FetchMany(count int) ([]Queued, error) {
 }
 
 func (q *IndexQueue) DeleteMany(count int) error {
-	return q.db.Update(func(tx *bolt.Tx) error {
-		minSeq, ok := q.getMinSeq(tx)
-		if !ok {
+	return q.db.Update(func(tx *Tx) error {
+		minSeq, ok, err := q.getMinSeq(tx)
+		if !ok || err != nil {
 			return nil
 		}
-		b := tx.Bucket(queuedBucket)
 		for ; count > 0; count-- {
 			buf := make([]byte, binary.MaxVarintLen64)
 			n := binary.PutUvarint(buf, minSeq)
-			data := b.Get(buf[:n])
+			data, err := tx.Get(queuedBucket, buf[:n])
+			if err != nil {
+				return err
+			}
 			if data == nil {
 				break
 			}
-			err := b.Delete(buf[:n])
+			err = tx.Delete(queuedBucket, buf[:n])
 			if err != nil {
 				return err
 			}
@@ -167,9 +157,10 @@ func (q *IndexQueue) DeleteMany(count int) error {
 
 func (q *IndexQueue) Size() int {
 	size := 0
-	err := q.db.View(func(tx *bolt.Tx) error {
-		size = tx.Bucket(queuedBucket).Stats().KeyN
-		return nil
+	err := q.db.View(func(tx *Tx) error {
+		s, err := tx.Size(queuedBucket)
+		size = int(s)
+		return err
 	})
 	if err != nil {
 		return -1
