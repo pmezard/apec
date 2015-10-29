@@ -99,14 +99,26 @@ func splitAlternatives(s string) []string {
 	return strings.Split(s, " ou ")
 }
 
+var (
+	wellKnown = map[string]string{
+		"st quentin en yvel": "saint-quentin-en-yvelines",
+		"montigny le breton": "montigny-le-bretonneux",
+		"75000":              "paris",
+		"boulogne-billancou": "boulogne-billancourt",
+	}
+)
+
 func fixWellKnown(s string) []string {
+	if r, ok := wellKnown[s]; ok {
+		return []string{r}
+	}
 	if s == "idf" {
 		return []string{"ile-de-france"}
 	}
 	if strings.Contains(s, "boulogne b") {
 		return []string{"boulogne billancourt"}
 	}
-	if strings.Contains(s, "velizy") {
+	if strings.Contains(s, "velizy") || strings.Contains(s, "vélizy") {
 		return []string{"velizy"}
 	}
 	return []string{s}
