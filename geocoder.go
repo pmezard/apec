@@ -33,6 +33,31 @@ type Location struct {
 	Lon     float64
 }
 
+func (l *Location) String() string {
+	values := []struct {
+		Field string
+		Value string
+	}{
+		{"city", l.City},
+		{"county", l.County},
+		{"state", l.State},
+		{"country", l.Country},
+	}
+	s := ""
+	written := false
+	for _, v := range values {
+		if v.Value == "" {
+			continue
+		}
+		if written {
+			s += ", "
+		}
+		s += fmt.Sprintf("%s: %s", v.Field, v.Value)
+		written = true
+	}
+	return s
+}
+
 func buildLocation(loc *jstruct.Location) *Location {
 	var p *Location
 	if loc != nil && len(loc.Results) > 0 && loc.Results[0].Geometry != nil {

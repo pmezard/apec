@@ -176,3 +176,38 @@ func kvdbPrefixesFn(cfg *Config) error {
 	}
 	return nil
 }
+
+var (
+	geocodedCmd = app.Command("geocoded", "print geocoded locations")
+)
+
+func geocodedFn(cfg *Config) error {
+	store, err := OpenStore(cfg.Store())
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	ids, err := store.List()
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		offer, err := getStoreJsonOffer(store, id)
+		if err != nil {
+			return err
+		}
+		place := offer.Location
+
+		loc, _, err := store.GetLocation(id)
+		if err != nil {
+			return err
+		}
+		result := "?"
+		if loc != nil {
+			result = loc.String()
+		}
+		fmt.Printf("%s: %q => %s\n", id, place, result)
+	}
+	return nil
+}

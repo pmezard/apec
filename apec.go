@@ -76,6 +76,8 @@ func dispatch() error {
 		return analyzeFn(cfg)
 	case kvdbPrefixesCmd.FullCommand():
 		return kvdbPrefixesFn(cfg)
+	case geocodedCmd.FullCommand():
+		return geocodedFn(cfg)
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
 }
