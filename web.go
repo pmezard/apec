@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve"
+	"github.com/pmezard/apec/blevext"
 )
 
 type offerData struct {
@@ -107,24 +108,36 @@ func formatOffers(templ *template.Template, store *Store, datedOffers []datedOff
 	return nil
 }
 
-func makeSearchQuery(query string) bleve.Query {
+func makeSearchQuery(query string, ids []string) bleve.Query {
+	addIdsFilter := func(q bleve.Query) bleve.Query {
+		if len(ids) == 0 {
+			return q
+		}
+		return bleve.NewConjunctionQuery([]bleve.Query{
+			blevext.NewDocIDQuery(ids),
+			q,
+		})
+	}
+
 	conditions := []bleve.Query{}
 	for _, p := range strings.Fields(query) {
 		conditions = append(conditions,
 			bleve.NewDisjunctionQueryMin([]bleve.Query{
-				bleve.NewMatchQuery(p).SetField("html"),
-				bleve.NewMatchQuery(p).SetField("title"),
+				addIdsFilter(bleve.NewMatchQuery(p).SetField("html")),
+				addIdsFilter(bleve.NewMatchQuery(p).SetField("title")),
 			}, 1))
 	}
 	return bleve.NewConjunctionQuery(conditions)
 }
 
-func findOffersFromText(index bleve.Index, query string) ([]datedOffer, error) {
+func findOffersFromText(index bleve.Index, query string, ids []string) (
+	[]datedOffer, error) {
+
 	if query == "" {
 		return nil, nil
 	}
 	datedOffers := []datedOffer{}
-	q := makeSearchQuery(query)
+	q := makeSearchQuery(query, ids)
 	rq := bleve.NewSearchRequest(q)
 	rq.Size = 20000
 	rq.Fields = []string{"date"}
@@ -208,22 +221,16 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	whatStart := time.Now()
 	textCount := 0
 	if len(what) > 0 && len(offers) > 0 {
-		whatOffers, err := findOffersFromText(index, what)
+		ids := make([]string, len(offers))
+		for i, offer := range offers {
+			ids[i] = offer.Id
+		}
+		sort.Strings(ids)
+		offers, err = findOffersFromText(index, what, ids)
 		if err != nil {
 			return err
 		}
-		textCount = len(whatOffers)
-		kept := map[string]bool{}
-		for _, o := range whatOffers {
-			kept[o.Id] = true
-		}
-		keptOffers := make([]datedOffer, 0, len(offers))
-		for _, o := range offers {
-			if kept[o.Id] {
-				keptOffers = append(keptOffers, o)
-			}
-		}
-		offers = keptOffers
+		textCount = len(offers)
 	}
 	formatStart := time.Now()
 	spatialDuration := whatStart.Sub(whereStart)
