@@ -286,13 +286,19 @@ func handleDensity(templ *Templates, store *Store, index bleve.Index,
 		return err
 	}
 	what := strings.TrimSpace(values.Get("what"))
+	size := strings.TrimSpace(values.Get("size"))
+	if size == "" {
+		size = "500"
+	}
 	u := "/densitymap?" + r.URL.RawQuery
 	data := struct {
 		URL  string
 		What string
+		Size string
 	}{
 		URL:  u,
 		What: what,
+		Size: size,
 	}
 	h := w.Header()
 	h.Set("Content-Type", "text/html")
@@ -311,13 +317,21 @@ func handleDensityMap(templ *Templates, store *Store, index bleve.Index,
 		return err
 	}
 	what := strings.TrimSpace(values.Get("what"))
+	gridSize := 500
+	size := strings.TrimSpace(values.Get("size"))
+	if size != "" {
+		n, err := strconv.ParseInt(size, 10, 32)
+		if err == nil {
+			gridSize = int(n)
+		}
+	}
 	start := time.Now()
 	points, err := listPoints(store, index, spatial, what)
 	if err != nil {
 		return err
 	}
 	listTime := time.Now()
-	grid := makeMapGrid(points, 1000, 1000)
+	grid := makeMapGrid(points, gridSize, gridSize)
 	grid = convolveGrid(grid)
 	gridTime := time.Now()
 	img := drawGrid(grid)
@@ -326,8 +340,8 @@ func handleDensityMap(templ *Templates, store *Store, index bleve.Index,
 	h.Set("Content-Type", "image/png")
 	err = png.Encode(w, img)
 	end := time.Now()
-	log.Printf("densitymap: '%s': %d points, total: %s, list: %s, grid: %s, "+
-		"draw: %s, encode: %s", what, len(points),
+	log.Printf("densitymap: size: %d, '%s': %d points, total: %s, list: %s, grid: %s, "+
+		"draw: %s, encode: %s", gridSize, what, len(points),
 		ftime(end.Sub(start)),
 		ftime(listTime.Sub(start)),
 		ftime(gridTime.Sub(listTime)),
