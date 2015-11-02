@@ -148,14 +148,6 @@ func makeMapGrid(points []Point, w, h int) *Grid {
 	// France bounding box
 	minX, maxX := -5.1406, 9.55932
 	minY, maxY := 41.33374, 51.089062
-	kept := []Point{}
-	for _, p := range points {
-		if p.Lat < minY || p.Lat > maxY || p.Lon < minX || p.Lon > maxX {
-			continue
-		}
-		kept = append(kept, p)
-	}
-	points = kept
 	cX := 0.5 * (minX + maxX)
 	cY := 0.5 * (minY + maxY)
 	width := 1.1 * (maxX - minX)
@@ -169,6 +161,9 @@ func makeMapGrid(points []Point, w, h int) *Grid {
 	cellHeight := height / float64(h)
 	grid := NewGrid(w, h)
 	for _, p := range points {
+		if p.Lat < minY || p.Lat > maxY || p.Lon < minX || p.Lon > maxX {
+			continue
+		}
 		i := int((p.Lon - minX) / cellWidth)
 		j := int((p.Lat - minY) / cellHeight)
 		if i >= grid.Width {
