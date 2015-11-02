@@ -11,9 +11,10 @@ import (
 )
 
 type OfferLoc struct {
-	Id   string
-	Date time.Time
-	Loc  rtreego.Rect
+	Id    string
+	Date  time.Time
+	Point Point
+	Loc   rtreego.Rect
 }
 
 func (l *OfferLoc) Bounds() *rtreego.Rect {
@@ -40,6 +41,10 @@ func makeOfferLocation(id string, date time.Time, loc *Location) (
 		Id:   id,
 		Date: date,
 		Loc:  rect,
+		Point: Point{
+			Lon: loc.Lon,
+			Lat: loc.Lat,
+		},
 	}, nil
 }
 
@@ -85,10 +90,16 @@ func (s *SpatialIndex) Remove(id string) {
 	}
 }
 
+func (s *SpatialIndex) Get(id string) *OfferLoc {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	return s.known[id]
+}
+
 func (s *SpatialIndex) List() []string {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-	ids := make([]string, len(s.known))
+	ids := make([]string, 0, len(s.known))
 	for id := range s.known {
 		ids = append(ids, id)
 	}

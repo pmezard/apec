@@ -61,14 +61,24 @@ type Point struct {
 	Lon float64
 }
 
-func listPoints(store *Store, index bleve.Index, query string) ([]Point, error) {
+// listPoints returns the location of offers satisfying specified full-text
+// query. If query is empty, it returns all locations. If not nil, spatial is
+// exploited as a cache to fetch indexed offers and their locations, which
+// avoid store lookups.
+func listPoints(store *Store, index bleve.Index, spatial *SpatialIndex,
+	query string) ([]Point, error) {
+
 	var ids []string
 	if query == "" {
-		list, err := store.List()
-		if err != nil {
-			return nil, err
+		if spatial != nil {
+			ids = spatial.List()
+		} else {
+			list, err := store.List()
+			if err != nil {
+				return nil, err
+			}
+			ids = list
 		}
-		ids = list
 	} else {
 		q := makeSearchQuery(query, nil)
 		rq := bleve.NewSearchRequest(q)
@@ -83,17 +93,27 @@ func listPoints(store *Store, index bleve.Index, query string) ([]Point, error) 
 	}
 	points := make([]Point, 0, len(ids))
 	for _, id := range ids {
-		loc, _, err := store.GetLocation(id)
-		if err != nil {
-			return nil, err
+		var p *Point
+		if spatial != nil {
+			offer := spatial.Get(id)
+			if offer != nil {
+				p = &offer.Point
+			}
 		}
-		if loc == nil {
-			continue
+		if p == nil {
+			loc, _, err := store.GetLocation(id)
+			if err != nil {
+				return nil, err
+			}
+			if loc == nil {
+				continue
+			}
+			p = &Point{
+				Lat: loc.Lat,
+				Lon: loc.Lon,
+			}
 		}
-		points = append(points, Point{
-			Lat: loc.Lat,
-			Lon: loc.Lon,
-		})
+		points = append(points, *p)
 	}
 	return points, nil
 }
@@ -263,7 +283,7 @@ func densityFn(cfg *Config) error {
 		return err
 	}
 
-	points, err := listPoints(store, index, *densityQuery)
+	points, err := listPoints(store, index, nil, *densityQuery)
 	if err != nil {
 		return err
 	}

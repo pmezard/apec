@@ -304,7 +304,7 @@ func ftime(d time.Duration) string {
 }
 
 func handleDensityMap(templ *Templates, store *Store, index bleve.Index,
-	w http.ResponseWriter, r *http.Request) error {
+	spatial *SpatialIndex, w http.ResponseWriter, r *http.Request) error {
 
 	values, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
@@ -312,7 +312,7 @@ func handleDensityMap(templ *Templates, store *Store, index bleve.Index,
 	}
 	what := strings.TrimSpace(values.Get("what"))
 	start := time.Now()
-	points, err := listPoints(store, index, what)
+	points, err := listPoints(store, index, spatial, what)
 	if err != nil {
 		return err
 	}
@@ -550,7 +550,7 @@ func web(cfg *Config) error {
 		}
 	})
 	http.HandleFunc("/densitymap", func(w http.ResponseWriter, r *http.Request) {
-		err := handleDensityMap(templ, store, index, w, r)
+		err := handleDensityMap(templ, store, index, spatial, w, r)
 		if err != nil {
 			log.Printf("error: density failed with: %s", err)
 		}
