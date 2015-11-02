@@ -177,9 +177,18 @@ func makeMapGrid(points []Point, w, h int) *Grid {
 	return grid
 }
 
+const (
+	kernelRadius = 21. / 1000.
+)
+
 func convolveGrid(grid *Grid) *Grid {
 	// France is roughly 1000x1000km, this kernel radius around 10/20km.
-	kw, kh := 21, 21
+	r := int(float64(grid.Width) * kernelRadius)
+	if r < 5 {
+		r = 5
+	}
+
+	kw, kh := r, r
 	cx, cy := kw/2, kh/2
 	ker := make([]float64, kw*kh)
 	dmax := float64(cx * cx)
