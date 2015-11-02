@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"html/template"
+	"image/png"
 	"log"
 	"net/http"
 	"net/url"
@@ -15,6 +16,25 @@ import (
 	"github.com/blevesearch/bleve"
 	"github.com/pmezard/apec/blevext"
 )
+
+type Templates struct {
+	Search  *template.Template
+	Density *template.Template
+}
+
+func loadTemplates() (*Templates, error) {
+	var err error
+	t := &Templates{}
+	t.Search, err = template.ParseFiles("web/search.tmpl")
+	if err != nil {
+		return nil, err
+	}
+	t.Density, err = template.ParseFiles("web/density.tmpl")
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
+}
 
 type offerData struct {
 	Account  string
@@ -44,7 +64,7 @@ func (s sortedDatedOffers) Less(i, j int) bool {
 	return s[i].Date > s[j].Date
 }
 
-func formatOffers(templ *template.Template, store *Store, datedOffers []datedOffer,
+func formatOffers(templ *Templates, store *Store, datedOffers []datedOffer,
 	where, what string, spatialDuration, textDuration time.Duration, w http.ResponseWriter,
 	r *http.Request) error {
 
@@ -104,7 +124,7 @@ func formatOffers(templ *template.Template, store *Store, datedOffers []datedOff
 	}
 	h := w.Header()
 	h.Set("Content-Type", "text/html")
-	templ.Execute(w, &data)
+	templ.Search.Execute(w, &data)
 	return nil
 }
 
@@ -202,7 +222,7 @@ func findOffersFromLocation(query string, spatial *SpatialIndex, geocoder *Geoco
 	return datedOffers, err
 }
 
-func serveQuery(templ *template.Template, store *Store, index bleve.Index,
+func serveQuery(templ *Templates, store *Store, index bleve.Index,
 	spatial *SpatialIndex, geocoder *Geocoder, w http.ResponseWriter, r *http.Request) error {
 
 	values, err := url.ParseQuery(r.URL.RawQuery)
@@ -247,7 +267,7 @@ func serveQuery(templ *template.Template, store *Store, index bleve.Index,
 	return err
 }
 
-func handleQuery(templ *template.Template, store *Store, index bleve.Index,
+func handleQuery(templ *Templates, store *Store, index bleve.Index,
 	spatial *SpatialIndex, geocoder *Geocoder, w http.ResponseWriter, r *http.Request) {
 	err := serveQuery(templ, store, index, spatial, geocoder, w, r)
 	if err != nil {
@@ -256,6 +276,64 @@ func handleQuery(templ *template.Template, store *Store, index bleve.Index,
 		w.WriteHeader(400)
 		fmt.Fprintf(w, "error: %s\n", err)
 	}
+}
+
+func handleDensity(templ *Templates, store *Store, index bleve.Index,
+	w http.ResponseWriter, r *http.Request) error {
+
+	values, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		return err
+	}
+	what := strings.TrimSpace(values.Get("what"))
+	u := "/densitymap?" + r.URL.RawQuery
+	data := struct {
+		URL  string
+		What string
+	}{
+		URL:  u,
+		What: what,
+	}
+	h := w.Header()
+	h.Set("Content-Type", "text/html")
+	return templ.Density.Execute(w, &data)
+}
+
+func ftime(d time.Duration) string {
+	return fmt.Sprintf("%.3fs", float64(d)/float64(time.Second))
+}
+
+func handleDensityMap(templ *Templates, store *Store, index bleve.Index,
+	w http.ResponseWriter, r *http.Request) error {
+
+	values, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		return err
+	}
+	what := strings.TrimSpace(values.Get("what"))
+	start := time.Now()
+	points, err := listPoints(store, index, what)
+	if err != nil {
+		return err
+	}
+	listTime := time.Now()
+	grid := makeMapGrid(points, 1000, 1000)
+	grid = convolveGrid(grid)
+	gridTime := time.Now()
+	img := drawGrid(grid)
+	drawTime := time.Now()
+	h := w.Header()
+	h.Set("Content-Type", "image/png")
+	err = png.Encode(w, img)
+	end := time.Now()
+	log.Printf("densitymap: '%s': %d points, total: %s, list: %s, grid: %s, "+
+		"draw: %s, encode: %s", what, len(points),
+		ftime(end.Sub(start)),
+		ftime(listTime.Sub(start)),
+		ftime(gridTime.Sub(listTime)),
+		ftime(drawTime.Sub(gridTime)),
+		ftime(end.Sub(drawTime)))
+	return err
 }
 
 func enforcePost(rq *http.Request, w http.ResponseWriter) bool {
@@ -389,7 +467,7 @@ func web(cfg *Config) error {
 		return fmt.Errorf("cannot open index: %s", err)
 	}
 	defer index.Close()
-	templ, err := template.ParseGlob("web/*.tmpl")
+	templ, err := loadTemplates()
 	if err != nil {
 		return err
 	}
@@ -463,6 +541,19 @@ func web(cfg *Config) error {
 		go func() {
 			panic("now")
 		}()
+	})
+
+	http.HandleFunc("/density", func(w http.ResponseWriter, r *http.Request) {
+		err := handleDensity(templ, store, index, w, r)
+		if err != nil {
+			log.Printf("error: density failed with: %s", err)
+		}
+	})
+	http.HandleFunc("/densitymap", func(w http.ResponseWriter, r *http.Request) {
+		err := handleDensityMap(templ, store, index, w, r)
+		if err != nil {
+			log.Printf("error: density failed with: %s", err)
+		}
 	})
 	return http.ListenAndServe(*webHttp, nil)
 }
