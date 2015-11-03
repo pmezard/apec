@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/patrick-higgins/rtreego"
+	"github.com/pmezard/rtreego"
 )
 
 type OfferLoc struct {
