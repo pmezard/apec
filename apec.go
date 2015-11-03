@@ -80,6 +80,8 @@ func dispatch() error {
 		return geocodedFn(cfg)
 	case densityCmd.FullCommand():
 		return densityFn(cfg)
+	case histogramCmd.FullCommand():
+		return histogramFn(cfg)
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
 }
