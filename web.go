@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"image/png"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -476,6 +477,10 @@ func web(cfg *Config) error {
 	publicURL := *webPublicPath
 	adminURL := *webAdminPath
 
+	home, err := ioutil.ReadFile("web/home.html")
+	if err != nil {
+		return err
+	}
 	store, err := OpenStore(cfg.Store())
 	if err != nil {
 		return fmt.Errorf("cannot open data store: %s", err)
@@ -512,6 +517,10 @@ func web(cfg *Config) error {
 
 	// Public handlers
 	http.HandleFunc(publicURL+"/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(home)
+	})
+	http.HandleFunc(publicURL+"/search", func(w http.ResponseWriter, r *http.Request) {
 		handleQuery(templ, store, index, spatial, geocoder, w, r)
 	})
 	http.HandleFunc(publicURL+"/density", func(w http.ResponseWriter, r *http.Request) {
