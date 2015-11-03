@@ -102,7 +102,6 @@ func formatOffers(templ *Templates, store *Store, datedOffers []datedOffer,
 		})
 	}
 	end := time.Now()
-	second := float64(time.Second)
 	data := struct {
 		Offers            []*offerData
 		Displayed         int
@@ -118,9 +117,9 @@ func formatOffers(templ *Templates, store *Store, datedOffers []datedOffer,
 		Total:             len(datedOffers),
 		Where:             where,
 		What:              what,
-		SpatialDuration:   fmt.Sprintf("%0.3f", float64(spatialDuration)/second),
-		TextDuration:      fmt.Sprintf("%0.3f", float64(textDuration)/second),
-		RenderingDuration: fmt.Sprintf("%0.3f", float64(end.Sub(start))/second),
+		SpatialDuration:   ftime(spatialDuration),
+		TextDuration:      ftime(textDuration),
+		RenderingDuration: ftime(end.Sub(start)),
 	}
 	h := w.Header()
 	h.Set("Content-Type", "text/html")
@@ -254,16 +253,15 @@ func serveQuery(templ *Templates, store *Store, index bleve.Index,
 	}
 	formatStart := time.Now()
 	spatialDuration := whatStart.Sub(whereStart)
-	textDuration := formatStart.Sub(whereStart)
+	textDuration := formatStart.Sub(whatStart)
 	err = formatOffers(templ, store, offers, where, what, spatialDuration,
 		textDuration, w, r)
 	end := time.Now()
 	formatDuration := end.Sub(formatStart)
-	log.Printf("spatial '%s': %d in %.3fs, text: '%s': %d in %.3fs, "+
-		"format: %d in %.3fs\n",
-		where, spatialCount, float64(spatialDuration)/float64(time.Second),
-		what, textCount, float64(textDuration)/float64(time.Second),
-		len(offers), float64(formatDuration)/float64(time.Second))
+	log.Printf("spatial '%s': %d in %s, text: '%s': %d in %s, format: %d in %s\n",
+		where, spatialCount, ftime(spatialDuration),
+		what, textCount, ftime(textDuration),
+		len(offers), ftime(formatDuration))
 	return err
 }
 
