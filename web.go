@@ -464,12 +464,18 @@ func handleChanges(store *Store, w http.ResponseWriter, r *http.Request) {
 }
 
 var (
-	webCmd  = app.Command("web", "APEC web frontend")
-	webHttp = webCmd.Flag("http", "http server address").Default(":8081").String()
+	webCmd        = app.Command("web", "APEC web frontend")
+	webHttp       = webCmd.Flag("http", "http server address").Default(":8081").String()
+	webPublicPath = webCmd.Flag("public-path", "base URL path for public content").
+			String()
+	webAdminPath = webCmd.Flag("admin-path", "base URL path for admin content").
+			String()
 )
 
 func web(cfg *Config) error {
-	baseURL := "/apec"
+	publicURL := *webPublicPath
+	adminURL := *webAdminPath
+
 	store, err := OpenStore(cfg.Store())
 	if err != nil {
 		return fmt.Errorf("cannot open data store: %s", err)
@@ -504,13 +510,27 @@ func web(cfg *Config) error {
 
 	geocodingHandler := NewGeocodingHandler(store, geocoder, spatial)
 
-	http.HandleFunc(baseURL+"/", func(w http.ResponseWriter, r *http.Request) {
+	// Public handlers
+	http.HandleFunc(publicURL+"/", func(w http.ResponseWriter, r *http.Request) {
 		handleQuery(templ, store, index, spatial, geocoder, w, r)
 	})
-	http.HandleFunc(baseURL+"/changes", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc(publicURL+"/density", func(w http.ResponseWriter, r *http.Request) {
+		err := handleDensity(templ, store, index, w, r)
+		if err != nil {
+			log.Printf("error: density failed with: %s", err)
+		}
+	})
+	http.HandleFunc(publicURL+"/densitymap", func(w http.ResponseWriter, r *http.Request) {
+		err := handleDensityMap(templ, store, index, spatial, w, r)
+		if err != nil {
+			log.Printf("error: density failed with: %s", err)
+		}
+	})
+	// Admin handlers
+	http.HandleFunc(adminURL+"/changes", func(w http.ResponseWriter, r *http.Request) {
 		handleChanges(store, w, r)
 	})
-	http.HandleFunc(baseURL+"/sync", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc(adminURL+"/sync", func(w http.ResponseWriter, r *http.Request) {
 		if enforcePost(r, w) {
 			return
 		}
@@ -521,7 +541,7 @@ func web(cfg *Config) error {
 
 	crawlingLock := sync.Mutex{}
 	crawling := false
-	http.HandleFunc(baseURL+"/crawl", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc(adminURL+"/crawl", func(w http.ResponseWriter, r *http.Request) {
 		if enforcePost(r, w) {
 			return
 		}
@@ -547,26 +567,14 @@ func web(cfg *Config) error {
 		}
 		w.Write([]byte("OK"))
 	})
-	http.Handle(baseURL+"/geocode", geocodingHandler)
+	http.Handle(adminURL+"/geocode", geocodingHandler)
 
-	http.HandleFunc(baseURL+"/panic", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc(adminURL+"/panic", func(w http.ResponseWriter, r *http.Request) {
 		// Evade HTTP handler recover
 		go func() {
 			panic("now")
 		}()
 	})
 
-	http.HandleFunc(baseURL+"/density", func(w http.ResponseWriter, r *http.Request) {
-		err := handleDensity(templ, store, index, w, r)
-		if err != nil {
-			log.Printf("error: density failed with: %s", err)
-		}
-	})
-	http.HandleFunc(baseURL+"/densitymap", func(w http.ResponseWriter, r *http.Request) {
-		err := handleDensityMap(templ, store, index, spatial, w, r)
-		if err != nil {
-			log.Printf("error: density failed with: %s", err)
-		}
-	})
 	return http.ListenAndServe(*webHttp, nil)
 }
