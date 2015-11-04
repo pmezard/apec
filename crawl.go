@@ -83,6 +83,8 @@ func tryHTTP(url string, baseDelay time.Duration, loops int,
 	}
 }
 
+// doJson repeatedly POST input as JSON using tryHTTP. It expects a JSON
+// response and decodes it into output.
 func doJson(url string, baseDelay time.Duration, loops int, input interface{},
 	output interface{}) error {
 
@@ -113,6 +115,7 @@ type SearchSorts struct {
 	Type      string `json:"type"`
 }
 
+// SearchFilters represents all filters of APEC API.
 type SearchFilters struct {
 	EnableFilter    bool          `json:"activeFiltre"`
 	Functions       []int         `json:"fonctions"`
@@ -129,6 +132,10 @@ type SearchFilters struct {
 	ConventionTypes []int         `json:"typesConvention"`
 }
 
+// searchOffers returns the list of offer identifiers matching supplied conditions:
+//  - start and count are used to page results
+//  - minSalary: the minimum salary for returned offers
+//  - locations: APEC internal location identifiers, can be empty
 func searchOffers(start, count, minSalary int, locations []int) ([]string, error) {
 	filter := &SearchFilters{
 		EnableFilter: true,
@@ -173,6 +180,9 @@ func searchOffers(start, count, minSalary int, locations []int) ([]string, error
 	return ids, nil
 }
 
+// getOffer returns the byte content of an offer document (theorically in JSON
+// format). It may return nil without an error if the offer does not exist,
+// which could happen with concurrent site updates.
 func getOffer(id string) ([]byte, error) {
 	u := "https://cadres.apec.fr/cms/webservices/offre/public?numeroOffre=" + id
 	output, err := tryHTTP(u, time.Second, 5, nil)
@@ -213,6 +223,9 @@ func enumerateOffers(minSalary int, locations []int, callback func([]string) err
 	return nil
 }
 
+// crawlOffers fetches specified offers and store their binary representation
+// in the store. It returns the number of offers actually stored. Already
+// fetched offers, or missing remote offers are ignored.
 func crawlOffers(store *Store, ids []string) (int, error) {
 	added := 0
 	for _, id := range ids {
@@ -248,7 +261,8 @@ func crawl(store *Store, minSalary int, locations []int) error {
 	listingDone := make(chan error)
 	crawlingDone := make(chan error)
 
-	// List offers in one goroutine. This reduces the races between our
+	// List offers in one goroutine. Doing it as fast as possible without
+	// waiting for offers to be fetched reduces the races between our
 	// enumeration and possible web site updates.
 	seen := map[string]bool{}
 	go func() {
