@@ -14,6 +14,8 @@ import (
 	"github.com/blevesearch/bleve/analysis/char_filters/html_char_filter"
 	"github.com/blevesearch/bleve/analysis/language/fr"
 	"github.com/blevesearch/bleve/analysis/token_filters/lower_case_filter"
+	"github.com/blevesearch/bleve/analysis/token_filters/stop_tokens_filter"
+	"github.com/blevesearch/bleve/analysis/token_map"
 	"github.com/blevesearch/bleve/analysis/tokenizers/exception"
 	bleveuni "github.com/blevesearch/bleve/analysis/tokenizers/unicode"
 	"github.com/blevesearch/bleve/index/store/boltdb"
@@ -151,6 +153,15 @@ var (
 		"c++",
 		"c#",
 	}
+	stopWords = []interface{}{
+		"h", // The H in H/F
+		"f", // The F in H/F
+		// Generic garbage
+		"mision",
+		"post",
+		"entrepris",
+		"suivi",
+	}
 )
 
 func NewOfferIndex(dir string) (bleve.Index, error) {
@@ -167,11 +178,29 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	pattern = "(?i)(?:" + pattern + ")"
 
 	m := bleve.NewIndexMapping()
-	apecName := "apec"
-	err = m.AddCustomTokenizer(apecName, map[string]interface{}{
+	apecTokenizer := "apec"
+	err = m.AddCustomTokenizer(apecTokenizer, map[string]interface{}{
 		"type":       exception.Name,
 		"exceptions": []string{pattern},
 		"tokenizer":  bleveuni.Name,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	apecTokens := "apec_tokens"
+	err = m.AddCustomTokenMap(apecTokens, map[string]interface{}{
+		"type":   token_map.Name,
+		"tokens": stopWords,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	apecStop := "apec_stop"
+	err = m.AddCustomTokenFilter(apecStop, map[string]interface{}{
+		"type":           stop_tokens_filter.Name,
+		"stop_token_map": apecTokens,
 	})
 	if err != nil {
 		return nil, err
@@ -182,10 +211,11 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 		fr.ElisionName,
 		fr.StopName,
 		fr.LightStemmerName,
+		apecStop,
 	}
 	fr := map[string]interface{}{
 		"type":          custom_analyzer.Name,
-		"tokenizer":     apecName,
+		"tokenizer":     apecTokenizer,
 		"token_filters": frTokens,
 	}
 	frHtml := map[string]interface{}{
@@ -193,7 +223,7 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 		"char_filters": []string{
 			html_char_filter.Name,
 		},
-		"tokenizer":     apecName,
+		"tokenizer":     apecTokenizer,
 		"token_filters": frTokens,
 	}
 	err = m.AddCustomAnalyzer("fr", fr)
