@@ -270,7 +270,12 @@ func writeImage(img image.Image, path string) error {
 }
 
 var (
-	densityCmd   = app.Command("density", "generate density map")
+	densityCmd = app.Command("density", `generate offers density map
+
+Compute and return a PNG image representing the spatial density of selected
+offers. Each offers is assumed to have a spatial extent of roughtly 15km around
+its pinpointed location.
+`)
 	densityFile  = densityCmd.Arg("file", "output image file").Required().String()
 	densityQuery = densityCmd.Arg("query", "query string").String()
 )

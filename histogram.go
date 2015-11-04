@@ -98,7 +98,14 @@ func histogramFn(cfg *Config) error {
 
 var (
 	indexStatsCmd = app.Command("indexstats",
-		"collect and display full text index statistics")
+		`collect and display full text index statistics
+
+Each output line contains statistics about a bleve index row type. See:
+
+  http://www.blevesearch.com/docs/Index-Structure/
+
+For more details about bleve index structure.
+`)
 	indexPathArg = indexStatsCmd.Arg("path", "index path").String()
 )
 
