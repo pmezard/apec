@@ -21,6 +21,9 @@ func (e *HTTPError) Error() string {
 	return fmt.Sprintf("got %s fetching %s", e.Status, e.URL)
 }
 
+// doHTTP performs a single GET (or POST if input is not nil) and returns
+// response data if any. It is the caller responsibility to close returned
+// reader.
 func doHTTP(url string, input io.Reader) (io.ReadCloser, error) {
 	method := "GET"
 	if input != nil {
@@ -50,11 +53,19 @@ func doHTTP(url string, input io.Reader) (io.ReadCloser, error) {
 	return rsp.Body, nil
 }
 
+// tryHTTP performs a GET or POST with exponential backoff, with specified
+// delay and maximum retry count.
 func tryHTTP(url string, baseDelay time.Duration, loops int,
-	input io.Reader) (io.ReadCloser, error) {
+	input io.ReadSeeker) (io.ReadCloser, error) {
 
 	delay := baseDelay
 	for {
+		if input != nil {
+			_, err := input.Seek(0, 0)
+			if err != nil {
+				return nil, err
+			}
+		}
 		output, err := doHTTP(url, input)
 		if err == nil {
 			return output, nil
@@ -75,14 +86,14 @@ func tryHTTP(url string, baseDelay time.Duration, loops int,
 func doJson(url string, baseDelay time.Duration, loops int, input interface{},
 	output interface{}) error {
 
-	var post io.Reader
+	var post io.ReadSeeker
 	if input != nil {
 		body := &bytes.Buffer{}
 		err := json.NewEncoder(body).Encode(input)
 		if err != nil {
 			return err
 		}
-		post = body
+		post = bytes.NewReader(body.Bytes())
 	}
 	result, err := tryHTTP(url, baseDelay, loops, post)
 	if err != nil {
