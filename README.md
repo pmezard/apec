@@ -16,3 +16,24 @@ Live demo:
   [http://mezard.eu/apec/](http://mezard.eu/apec/)
 
 
+# Usage
+
+OpenCage geocoder is used to locate the job offers, you can get an API key from
+[http://geocoder.opencagedata.com/](http://geocoder.opencagedata.com/). Then
+put it in $APEC_GEOCODING_KEY so apec command can use it automatically.
+
+```
+# Crawl job offers in Finistère (west of Brittany)
+$ apec crawl --location=29
+
+# Index and geocode them
+$ APEC_GEOCODING_KEY=YOUR_OPENCAGE_API_KEY apec index
+
+# Start the web server on :8081
+$ apec web
+```
+
+All commands can be listed with:
+```
+$ apec
+```
