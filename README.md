@@ -8,7 +8,7 @@ The APEC is an official French job board for middle management/executive jobs:
 
 This project is an experiment on data collection, geocoding, indexing, analysis and visualization, based on APEC job offers. The result is interesting because:
  * It provides real data to play with, with all its flaws (typo, mismatched fields, unsanitized inputs, etc.) 
- * Recruitment is an important and poorly adressed topic and job offers reflect that. They are often badly written, by people unrelated to targeted fields and carry little information in practice.
+ * It highlights trends, in recruiting cycles, in popular technologies, etc.
  * It has to run on a Raspberry Pi 2 which brings amusing technical constraints.
 
 Live demo:
