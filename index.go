@@ -262,6 +262,7 @@ var (
 			Default("true").Bool()
 	indexMinQuota = indexCmd.Flag("min-quota",
 		"stop geocoding when call quota moves below supplied value").Default("500").Int()
+	indexDocId = indexCmd.Flag("id", "index only specified document").String()
 )
 
 func indexOffers(cfg *Config) error {
@@ -273,6 +274,15 @@ func indexOffers(cfg *Config) error {
 	rawOffers, err := loadOffers(store)
 	if err != nil {
 		return err
+	}
+	if *indexDocId != "" {
+		kept := []*jstruct.JsonOffer{}
+		for _, o := range rawOffers {
+			if o.Id == *indexDocId {
+				kept = append(kept, o)
+			}
+		}
+		rawOffers = kept
 	}
 	offers, err := convertOffers(rawOffers)
 	if err != nil {
