@@ -82,6 +82,8 @@ func dispatch() error {
 		return densityFn(cfg)
 	case histogramCmd.FullCommand():
 		return histogramFn(cfg)
+	case indexStatsCmd.FullCommand():
+		return indexStatsFn(cfg)
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
 }
