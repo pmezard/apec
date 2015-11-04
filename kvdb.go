@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/cznic/kv"
@@ -276,6 +277,10 @@ func OpenKVDB(path string, maxSize int) (*KVDB, error) {
 		Locker: func(name string) (io.Closer, error) {
 			return ioutil.NopCloser(nil), nil
 		},
+	}
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		return nil, err
 	}
 	db, err := kv.Create(path, opts)
 	if err != nil {

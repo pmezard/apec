@@ -15,7 +15,7 @@ func createTempKVDB(t *testing.T, maxSize int) *KVDB {
 	if err != nil {
 		t.Fatalf("cannot create temporary directory for test KVDB: %s", err)
 	}
-	path := filepath.Join(tmpDir, "db")
+	path := filepath.Join(tmpDir, "dir/db")
 	db, err := OpenKVDB(path, maxSize)
 	if err != nil {
 		t.Fatalf("cannot open KVDB: %s", err)
