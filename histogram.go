@@ -99,10 +99,15 @@ func histogramFn(cfg *Config) error {
 var (
 	indexStatsCmd = app.Command("indexstats",
 		"collect and display full text index statistics")
+	indexPathArg = indexStatsCmd.Arg("path", "index path").String()
 )
 
 func indexStatsFn(cfg *Config) error {
-	index, err := OpenOfferIndex(cfg.Index())
+	path := *indexPathArg
+	if path == "" {
+		path = cfg.Index()
+	}
+	index, err := OpenOfferIndex(path)
 	if err != nil {
 		return err
 	}
