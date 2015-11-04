@@ -83,12 +83,24 @@ type Cache struct {
 }
 
 func OpenCache(dir string) (*Cache, error) {
+	path := filepath.Join(dir, "kv")
+	exists, err := isFile(path)
+	if err != nil {
+		return nil, err
+	}
 	db, err := OpenKVDB(filepath.Join(dir, "kv"), 0)
 	if err != nil {
 		return nil, err
 	}
 	c := &Cache{
 		db: db,
+	}
+	if !exists {
+		err = c.SetVersion(geocoderVersion)
+		if err != nil {
+			c.Close()
+			return nil, err
+		}
 	}
 	return c, nil
 }

@@ -81,3 +81,18 @@ func TestGeocoderCacheLocation(t *testing.T) {
 	checkCacheLocation(t, cache, "noresult", true, nil)
 	checkCacheLocation(t, cache, "missing", false, nil)
 }
+
+func TestGeocoderNew(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "apec-")
+	if err != nil {
+		t.Fatalf("could not create geocoder cache directory: %s", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	path := filepath.Join(tmpDir, "sub")
+
+	g, err := NewGeocoder("some_key", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.Close()
+}

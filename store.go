@@ -23,15 +23,22 @@ var (
 	storeVersion        = 3
 )
 
-func UpgradeStore(dir string) (*Store, error) {
-	created := false
-	path := filepath.Join(dir, "kv")
+func isFile(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return nil, err
+			return false, err
 		}
-		created = true
+		return false, nil
+	}
+	return true, nil
+}
+
+func UpgradeStore(dir string) (*Store, error) {
+	path := filepath.Join(dir, "kv")
+	exists, err := isFile(path)
+	if err != nil {
+		return nil, err
 	}
 	db, err := OpenKVDB(path, 0)
 	if err != nil {
@@ -40,7 +47,7 @@ func UpgradeStore(dir string) (*Store, error) {
 	store := &Store{
 		db: db,
 	}
-	if created {
+	if !exists {
 		err = store.SetVersion(storeVersion)
 		if err != nil {
 			store.Close()
