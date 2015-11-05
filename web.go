@@ -15,7 +15,9 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve"
+	"github.com/jonas-p/go-shp"
 	"github.com/pmezard/apec/blevext"
+	"github.com/pmezard/apec/shpdraw"
 )
 
 type Templates struct {
@@ -309,7 +311,8 @@ func ftime(d time.Duration) string {
 }
 
 func handleDensityMap(templ *Templates, store *Store, index bleve.Index,
-	spatial *SpatialIndex, w http.ResponseWriter, r *http.Request) error {
+	spatial *SpatialIndex, box shp.Box, shapes []shp.Shape,
+	w http.ResponseWriter, r *http.Request) error {
 
 	values, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
@@ -330,22 +333,28 @@ func handleDensityMap(templ *Templates, store *Store, index bleve.Index,
 		return err
 	}
 	listTime := time.Now()
-	grid := makeMapGrid(points, gridSize, gridSize)
+	grid := makeMapGrid(points, box, gridSize, gridSize)
 	grid = convolveGrid(grid)
 	gridTime := time.Now()
 	img := drawGrid(grid)
 	drawTime := time.Now()
+	err = drawShapes(box, shapes, img)
+	if err != nil {
+		return err
+	}
+	shapesTime := time.Now()
 	h := w.Header()
 	h.Set("Content-Type", "image/png")
 	err = png.Encode(w, img)
 	end := time.Now()
 	log.Printf("densitymap: size: %d, '%s': %d points, total: %s, list: %s, grid: %s, "+
-		"draw: %s, encode: %s", gridSize, what, len(points),
+		"draw: %s, shapes: %s, encode: %s", gridSize, what, len(points),
 		ftime(end.Sub(start)),
 		ftime(listTime.Sub(start)),
 		ftime(gridTime.Sub(listTime)),
 		ftime(drawTime.Sub(gridTime)),
-		ftime(end.Sub(drawTime)))
+		ftime(shapesTime.Sub(drawTime)),
+		ftime(end.Sub(shapesTime)))
 	return err
 }
 
@@ -515,6 +524,12 @@ func web(cfg *Config) error {
 
 	geocodingHandler := NewGeocodingHandler(store, geocoder, spatial)
 
+	box := makeFranceBox()
+	shapes, err := shpdraw.LoadAndFilterShapes("shp/TM_WORLD_BORDERS-0.3.shp", box)
+	if err != nil {
+		return err
+	}
+
 	// Public handlers
 	http.HandleFunc(publicURL+"/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -530,7 +545,7 @@ func web(cfg *Config) error {
 		}
 	})
 	http.HandleFunc(publicURL+"/densitymap", func(w http.ResponseWriter, r *http.Request) {
-		err := handleDensityMap(templ, store, index, spatial, w, r)
+		err := handleDensityMap(templ, store, index, spatial, box, shapes, w, r)
 		if err != nil {
 			log.Printf("error: density failed with: %s", err)
 		}

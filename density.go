@@ -8,6 +8,8 @@ import (
 	"sort"
 
 	"github.com/blevesearch/bleve"
+	"github.com/jonas-p/go-shp"
+	"github.com/pmezard/apec/shpdraw"
 )
 
 func hueToRgb(p, q, t float64) float64 {
@@ -144,28 +146,34 @@ func (g *Grid) Set(i, j, v int) {
 	g.Values[j*g.Width+i] = v
 }
 
-func makeMapGrid(points []Point, w, h int) *Grid {
-	// France bounding box
+func makeFranceBox() shp.Box {
 	minX, maxX := -5.1406, 9.55932
 	minY, maxY := 41.33374, 51.089062
 	cX := 0.5 * (minX + maxX)
 	cY := 0.5 * (minY + maxY)
 	width := 1.1 * (maxX - minX)
 	height := 1.1 * (maxY - minY)
-	minX = cX - 0.5*width
-	maxX = cX + 0.5*width
-	minY = cY - 0.5*height
-	maxY = cY + 0.5*height
+	return shp.Box{
+		MinX: cX - 0.5*width,
+		MaxX: cX + 0.5*width,
+		MinY: cY - 0.5*height,
+		MaxY: cY + 0.5*height,
+	}
+}
+
+func makeMapGrid(points []Point, box shp.Box, w, h int) *Grid {
+	width := box.MaxX - box.MinX
+	height := box.MaxY - box.MinY
 
 	cellWidth := width / float64(w)
 	cellHeight := height / float64(h)
 	grid := NewGrid(w, h)
 	for _, p := range points {
-		if p.Lat < minY || p.Lat > maxY || p.Lon < minX || p.Lon > maxX {
+		if p.Lat < box.MinY || p.Lat > box.MaxY || p.Lon < box.MinX || p.Lon > box.MaxX {
 			continue
 		}
-		i := int((p.Lon - minX) / cellWidth)
-		j := int((p.Lat - minY) / cellHeight)
+		i := int((p.Lon - box.MinX) / cellWidth)
+		j := int((p.Lat - box.MinY) / cellHeight)
 		if i >= grid.Width {
 			i = grid.Width - 1
 		}
@@ -256,6 +264,17 @@ func drawGrid(grid *Grid) *image.RGBA {
 	return img
 }
 
+func drawShapes(box shp.Box, shapes []shp.Shape, img *image.RGBA) error {
+	col := color.RGBA{255, 255, 255, 255}
+	for _, shape := range shapes {
+		err := shpdraw.Draw(img, col, box, shape)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func writeImage(img image.Image, path string) error {
 	fp, err := os.Create(path)
 	if err != nil {
@@ -291,13 +310,22 @@ func densityFn(cfg *Config) error {
 	if err != nil {
 		return err
 	}
+	box := makeFranceBox()
+	shapes, err := shpdraw.LoadAndFilterShapes("shp/TM_WORLD_BORDERS-0.3.shp", box)
+	if err != nil {
+		return err
+	}
 
 	points, err := listPoints(store, index, nil, *densityQuery)
 	if err != nil {
 		return err
 	}
-	grid := makeMapGrid(points, 1000, 1000)
+	grid := makeMapGrid(points, box, 1000, 1000)
 	grid = convolveGrid(grid)
 	img := drawGrid(grid)
+	err = drawShapes(box, shapes, img)
+	if err != nil {
+		return err
+	}
 	return writeImage(img, *densityFile)
 }
