@@ -1,6 +1,7 @@
 <html>
 <header>
 	<meta charset="utf-8">
+	<script src="js/jquery-2.1.4.min.js"></script>
 </header>
 <body>
 <div>
@@ -11,8 +12,27 @@
 		<input type="submit" value="Submit">
 	</form>
 	<div>
-		<img src="{{.URL}}"/>
+		<img src="{{.URL}}" id="map" style="cursor: pointer"/>
 	</div>
+	<script>
+$(function() {
+    $("#map").click(function(e) {
+	  var x0 = {{.X0}};
+	  var y0 = {{.Y0}};
+	  var dx = {{.DX}};
+	  var dy = {{.DY}};
+      var offset = $(this).offset();
+      var relX = (e.pageX - offset.left);
+      var relY = (e.pageY - offset.top);
+	  var x = relX*dx + x0;
+	  var y = relY*dy + y0;
+	  var where = encodeURIComponent("wgs84:" + y + "," + x);
+	  var what = encodeURIComponent("{{.What}}");
+	  var url = "search?where=" + where + "&what=" + what;
+	  window.location = url
+    });
+});
+	</script>
 </div>
 </body>
 </html>

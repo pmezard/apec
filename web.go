@@ -186,9 +186,31 @@ func findOffersFromLocation(query string, spatial *SpatialIndex, geocoder *Geoco
 	if query == "" {
 		return spatial.FindAll(), nil
 	}
-	parts := strings.Split(query, ",")
 	lat, lon, radius := float64(0), float64(0), float64(0)
-	if len(parts) == 1 || len(parts) == 2 {
+	if strings.HasPrefix(query, "wgs84:") {
+		parts := strings.Split(query[len("wgs84:"):], ",")
+		if len(parts) < 2 || len(parts) > 3 {
+			return nil, fmt.Errorf("invalid coordinates: %s", query)
+		}
+		floats := []float64{}
+		for _, p := range parts {
+			f, err := strconv.ParseFloat(p, 64)
+			if err != nil {
+				return nil, err
+			}
+			floats = append(floats, f)
+		}
+		if len(floats) == 2 {
+			floats = append(floats, float64(30000))
+		}
+		lat = floats[0]
+		lon = floats[1]
+		radius = floats[2]
+	} else {
+		parts := strings.Split(query, ",")
+		if len(parts) != 1 && len(parts) != 2 {
+			return nil, fmt.Errorf("invalid location string: %s", query)
+		}
 		loc, ok, err := geocoder.GetCachedLocation(strings.ToLower(parts[0]), "fr")
 		if err != nil {
 			return nil, err
@@ -205,20 +227,6 @@ func findOffersFromLocation(query string, spatial *SpatialIndex, geocoder *Geoco
 				return nil, err
 			}
 		}
-	} else if len(parts) == 3 {
-		floats := []float64{}
-		for _, p := range parts {
-			f, err := strconv.ParseFloat(p, 64)
-			if err != nil {
-				return nil, err
-			}
-			floats = append(floats, f)
-		}
-		lat = floats[0]
-		lon = floats[1]
-		radius = floats[2]
-	} else {
-		return nil, fmt.Errorf("location query must be like: lat,lng,radius or name,radius")
 	}
 	datedOffers, err := spatial.FindNearest(lat, lon, radius)
 	return datedOffers, err
@@ -280,7 +288,7 @@ func handleQuery(templ *Templates, store *Store, index bleve.Index,
 }
 
 func handleDensity(templ *Templates, store *Store, index bleve.Index,
-	w http.ResponseWriter, r *http.Request) error {
+	box shp.Box, w http.ResponseWriter, r *http.Request) error {
 
 	values, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
@@ -291,15 +299,25 @@ func handleDensity(templ *Templates, store *Store, index bleve.Index,
 	if size == "" {
 		size = "500"
 	}
+	sz, err := strconv.ParseFloat(size, 64)
+	if err != nil {
+		return err
+	}
 	u := "densitymap?" + r.URL.RawQuery
 	data := struct {
-		URL  string
-		What string
-		Size string
+		URL    string
+		What   string
+		Size   string
+		X0, Y0 float64
+		DX, DY float64
 	}{
 		URL:  u,
 		What: what,
 		Size: size,
+		X0:   box.MinX,
+		Y0:   box.MaxY,
+		DX:   (box.MaxX - box.MinX) / sz,
+		DY:   -(box.MaxY - box.MinY) / sz,
 	}
 	h := w.Header()
 	h.Set("Content-Type", "text/html")
@@ -535,11 +553,13 @@ func web(cfg *Config) error {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(home)
 	})
+	jsPrefix := publicURL + "/js/"
+	http.Handle(jsPrefix, http.StripPrefix(jsPrefix, http.FileServer(http.Dir("web/js"))))
 	http.HandleFunc(publicURL+"/search", func(w http.ResponseWriter, r *http.Request) {
 		handleQuery(templ, store, index, spatial, geocoder, w, r)
 	})
 	http.HandleFunc(publicURL+"/density", func(w http.ResponseWriter, r *http.Request) {
-		err := handleDensity(templ, store, index, w, r)
+		err := handleDensity(templ, store, index, box, w, r)
 		if err != nil {
 			log.Printf("error: density failed with: %s", err)
 		}
