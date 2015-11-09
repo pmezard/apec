@@ -211,3 +211,35 @@ func geocodedFn(cfg *Config) error {
 	}
 	return nil
 }
+
+var (
+	listDeletedCmd = app.Command("list-deleted", "list deleted offers")
+)
+
+func listDeletedFn(cfg *Config) error {
+	store, err := OpenStore(cfg.Store())
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	deleted, err := store.ListDeletedIds()
+	if err != nil {
+		return err
+	}
+	for _, id := range deleted {
+		entries, err := store.ListDeletedOffers(id)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s: ", id)
+		for i, e := range entries {
+			if i > 0 {
+				fmt.Printf(", ")
+			}
+			fmt.Printf("%s", e.Date)
+		}
+		fmt.Println()
+	}
+	return nil
+}

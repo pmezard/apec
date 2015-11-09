@@ -84,6 +84,8 @@ func dispatch() error {
 		return histogramFn(cfg)
 	case indexStatsCmd.FullCommand():
 		return indexStatsFn(cfg)
+	case listDeletedCmd.FullCommand():
+		return listDeletedFn(cfg)
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
 }
