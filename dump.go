@@ -179,6 +179,8 @@ func kvdbPrefixesFn(cfg *Config) error {
 
 var (
 	geocodedCmd = app.Command("geocoded", "print geocoded locations")
+	geocodedIds = geocodedCmd.Flag("ids", "display offer identifiers").
+			Default("true").Bool()
 )
 
 func geocodedFn(cfg *Config) error {
@@ -207,7 +209,11 @@ func geocodedFn(cfg *Config) error {
 		if loc != nil {
 			result = loc.String()
 		}
-		fmt.Printf("%s: %q => %s\n", id, place, result)
+		if *geocodedIds {
+			fmt.Printf("%s: %q => %s\n", id, place, result)
+		} else {
+			fmt.Printf("%q => %s\n", place, result)
+		}
 	}
 	return nil
 }
