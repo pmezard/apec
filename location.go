@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -70,9 +71,9 @@ var (
 		nfdString("proche"),
 		nfdString("dpts"),
 		nfdString("dpt"),
-		nfdString("départem."),
+		nfdString(`départem\.`),
 		nfdString("départements"),
-		nfdString("agglo."),
+		nfdString(`agglo\.`),
 		nfdString("agglo"),
 		nfdString("agence de"),
 		nfdString("agence"),
@@ -80,15 +81,18 @@ var (
 		nfdString("régions"),
 		nfdString("région"),
 	}
+	reLocPrefixes = regexp.MustCompile(`^\s*(?:(?:` + strings.Join(locPrefixes, "|") +
+		`)\s+)+`)
+	locRemovals = []string{
+		nfdString("métropole"),
+		nfdString("metropole"),
+	}
+	reLocRemovals = regexp.MustCompile(`\s*(?:` + strings.Join(locRemovals, "|") + `)\s*`)
 )
 
 func stripPrefixes(s string) []string {
-	stripped := s
-	for _, p := range locPrefixes {
-		if strings.HasPrefix(stripped, p) {
-			stripped = strings.TrimSpace(stripped[len(p):])
-		}
-	}
+	stripped := reLocPrefixes.ReplaceAllLiteralString(s, "")
+	stripped = reLocRemovals.ReplaceAllLiteralString(stripped, "")
 	return []string{stripped}
 }
 
