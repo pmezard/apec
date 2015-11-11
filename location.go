@@ -4,6 +4,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"unicode"
 
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
@@ -82,17 +83,13 @@ var (
 )
 
 func stripPrefixes(s string) []string {
-	orig := nfdString(s)
-	stripped := orig
+	stripped := s
 	for _, p := range locPrefixes {
 		if strings.HasPrefix(stripped, p) {
 			stripped = strings.TrimSpace(stripped[len(p):])
 		}
 	}
-	if stripped != orig {
-		s = stripped
-	}
-	return []string{s}
+	return []string{stripped}
 }
 
 func splitAlternatives(s string) []string {
@@ -105,11 +102,22 @@ var (
 		"montigny le breton": "montigny-le-bretonneux",
 		"75000":              "paris",
 		"boulogne-billancou": "boulogne-billancourt",
+		"paris centre":       "paris",
+		"rhone":              "rhone-alpes",
+		"paca":               "provence-alpes-cote d'azur",
 	}
 )
 
+func removeDiacritics(s string) string {
+	output, _, _ := transform.String(transform.RemoveFunc(func(r rune) bool {
+		return unicode.Is(unicode.Mn, r) // Mn: nonspacing marks
+	}), s)
+	return output
+}
+
 func fixWellKnown(s string) []string {
-	if r, ok := wellKnown[s]; ok {
+	noAccents := removeDiacritics(s)
+	if r, ok := wellKnown[noAccents]; ok {
 		return []string{r}
 	}
 	if s == "idf" {
@@ -118,7 +126,7 @@ func fixWellKnown(s string) []string {
 	if strings.Contains(s, "boulogne b") {
 		return []string{"boulogne billancourt"}
 	}
-	if strings.Contains(s, "velizy") || strings.Contains(s, "vélizy") {
+	if strings.Contains(noAccents, "velizy") {
 		return []string{"velizy"}
 	}
 	return []string{s}
@@ -144,7 +152,7 @@ func nfcString(s string) []string {
 }
 
 func fixLocation(s string) []string {
-	result := []string{strings.TrimSpace(strings.ToLower(s))}
+	result := []string{nfdString(strings.TrimSpace(strings.ToLower(s)))}
 	result = apply(result, splitAlternatives)
 	result = apply(result, stripPrefixes)
 	result = apply(result, fixWellKnown)
