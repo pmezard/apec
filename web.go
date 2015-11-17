@@ -131,7 +131,12 @@ func formatOffers(templ *Templates, store *Store, datedOffers []datedOffer,
 	return nil
 }
 
-func makeSearchQuery(query string, ids []string) bleve.Query {
+func makeSearchQuery(query string, ids []string) (bleve.Query, error) {
+	nodes, err := blevext.Parse(query)
+	if err != nil {
+		return nil, err
+	}
+
 	addIdsFilter := func(q bleve.Query) bleve.Query {
 		if len(ids) == 0 {
 			return q
@@ -142,15 +147,42 @@ func makeSearchQuery(query string, ids []string) bleve.Query {
 		})
 	}
 
-	conditions := []bleve.Query{}
-	for _, p := range strings.Fields(query) {
-		conditions = append(conditions,
-			bleve.NewDisjunctionQueryMin([]bleve.Query{
-				addIdsFilter(bleve.NewMatchQuery(p).SetField("html")),
-				addIdsFilter(bleve.NewMatchQuery(p).SetField("title")),
-			}, 1))
+	var makeQuery func(*blevext.Node) (bleve.Query, error)
+	makeQuery = func(n *blevext.Node) (bleve.Query, error) {
+		if n == nil {
+			return bleve.NewMatchAllQuery(), nil
+		}
+		switch n.Kind {
+		case blevext.NodeAnd, blevext.NodeOr:
+			left, err := makeQuery(n.Children[0])
+			if err != nil {
+				return nil, err
+			}
+			right, err := makeQuery(n.Children[1])
+			if err != nil {
+				return nil, err
+			}
+			if n.Kind == blevext.NodeOr {
+				return bleve.NewDisjunctionQueryMin([]bleve.Query{left, right}, 1), nil
+			}
+			return bleve.NewConjunctionQuery([]bleve.Query{left, right}), nil
+		case blevext.NodeString, blevext.NodePhrase:
+			fn := func(s string) bleve.Query {
+				return bleve.NewMatchQuery(s)
+			}
+			if n.Kind == blevext.NodePhrase {
+				fn = func(s string) bleve.Query {
+					return bleve.NewMatchPhraseQuery(s)
+				}
+			}
+			return bleve.NewDisjunctionQueryMin([]bleve.Query{
+				addIdsFilter(fn(n.Value).SetField("html")),
+				addIdsFilter(fn(n.Value).SetField("title")),
+			}, 1), nil
+		}
+		return nil, fmt.Errorf("unknown query node type: %d", n.Kind)
 	}
-	return bleve.NewConjunctionQuery(conditions)
+	return makeQuery(nodes)
 }
 
 func findOffersFromText(index bleve.Index, query string, ids []string) (
@@ -160,7 +192,10 @@ func findOffersFromText(index bleve.Index, query string, ids []string) (
 		return nil, nil
 	}
 	datedOffers := []datedOffer{}
-	q := makeSearchQuery(query, ids)
+	q, err := makeSearchQuery(query, ids)
+	if err != nil {
+		return nil, err
+	}
 	rq := bleve.NewSearchRequest(q)
 	rq.Size = 20000
 	rq.Fields = []string{"date"}

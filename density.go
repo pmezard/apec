@@ -82,7 +82,10 @@ func listPoints(store *Store, index bleve.Index, spatial *SpatialIndex,
 			ids = list
 		}
 	} else {
-		q := makeSearchQuery(query, nil)
+		q, err := makeSearchQuery(query, nil)
+		if err != nil {
+			return nil, err
+		}
 		rq := bleve.NewSearchRequest(q)
 		rq.Size = 20000
 		res, err := index.Search(rq)

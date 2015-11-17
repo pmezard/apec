@@ -1,3 +1,4 @@
 *.json
 /offers*
 *.pprof
+/blevext/y.output

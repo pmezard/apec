@@ -128,7 +128,10 @@ func debugQueryFn(cfg *Config) error {
 		return err
 	}
 	defer index.Close()
-	q := bleve.NewQueryStringQuery(*debugQueryQuery)
+	q, err := makeSearchQuery(*debugQueryQuery, nil)
+	if err != nil {
+		return err
+	}
 	s, err := bleve.DumpQuery(index.Mapping(), q)
 	fmt.Println(s)
 	return err
