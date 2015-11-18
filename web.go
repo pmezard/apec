@@ -172,7 +172,7 @@ func makeSearchQuery(query string, ids []string) (bleve.Query, error) {
 			}
 			if n.Kind == blevext.NodePhrase {
 				fn = func(s string) bleve.Query {
-					return bleve.NewMatchPhraseQuery(s)
+					return blevext.NewAllMatchQuery(s)
 				}
 			}
 			return bleve.NewDisjunctionQueryMin([]bleve.Query{
