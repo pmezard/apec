@@ -1,4 +1,4 @@
-//go:generate go tool yacc -o query.y.go query.y
+//go:generate go tool yacc -o parser.y.go parser.y
 
 package blevext
 

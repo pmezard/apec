@@ -1,9 +1,9 @@
-//line query.y:2
+//line parser.y:2
 package blevext
 
 import __yyfmt__ "fmt"
 
-//line query.y:2
+//line parser.y:2
 import "fmt"
 
 func traceRule(format string, args ...interface{}) {
@@ -12,7 +12,7 @@ func traceRule(format string, args ...interface{}) {
 	}
 }
 
-//line query.y:13
+//line parser.y:13
 type yySymType struct {
 	yys int
 	s   string
@@ -444,27 +444,27 @@ yydefault:
 
 	case 1:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line query.y:34
+		//line parser.y:34
 		{
 			traceRule("queryPart -> query")
 			yylex.(*queryLexer).result = yyDollar[1].n
 		}
 	case 2:
 		yyDollar = yyS[yypt-0 : yypt+1]
-		//line query.y:39
+		//line parser.y:39
 		{
 
 		}
 	case 3:
 		yyDollar = yyS[yypt-3 : yypt+1]
-		//line query.y:44
+		//line parser.y:44
 		{
 			traceRule("tLPARENS queryPart tRPARENS -> queryPart\n")
 			yyVAL.n = yyDollar[2].n
 		}
 	case 4:
 		yyDollar = yyS[yypt-3 : yypt+1]
-		//line query.y:49
+		//line parser.y:49
 		{
 			traceRule("tAND -> queryPart\n")
 			yyVAL.n = &Node{
@@ -477,7 +477,7 @@ yydefault:
 		}
 	case 5:
 		yyDollar = yyS[yypt-3 : yypt+1]
-		//line query.y:60
+		//line parser.y:60
 		{
 			traceRule("tOR -> queryPart\n")
 			yyVAL.n = &Node{
@@ -490,7 +490,7 @@ yydefault:
 		}
 	case 6:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line query.y:71
+		//line parser.y:71
 		{
 			traceRule("tPHRASE[%s] -> queryPart\n", yyDollar[1].s)
 			yyVAL.n = &Node{
@@ -500,7 +500,7 @@ yydefault:
 		}
 	case 7:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line query.y:79
+		//line parser.y:79
 		{
 			traceRule("tSTRING[%s] -> queryPart\n", yyDollar[1].s)
 			yyVAL.n = &Node{
