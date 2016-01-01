@@ -86,6 +86,15 @@ func TestOfferDeletion(t *testing.T) {
 	if bytes.Compare(deletedData, data) != 0 {
 		t.Fatalf("deleted data does not match data: %x != %x", deletedData, data)
 	}
+
+	// List missing deleted offers
+	deletedOffers, err = store.ListDeletedOffers("missing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(deletedOffers) > 0 {
+		t.Fatalf("missing deleted offers returned non-empty list")
+	}
 }
 
 func TestOfferSize(t *testing.T) {

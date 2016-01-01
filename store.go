@@ -235,7 +235,7 @@ func (s *Store) ListDeletedOffers(id string) ([]DeletedOffer, error) {
 	deletedKeys := &deletedOffers{}
 	err := s.db.View(func(tx *Tx) error {
 		data, err := tx.Get(kvDeletedKeysBucket, []byte(id))
-		if err != nil {
+		if err != nil || data == nil {
 			return err
 		}
 		return json.Unmarshal(data, deletedKeys)
