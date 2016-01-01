@@ -24,13 +24,13 @@ import (
 	"github.com/pquerna/ffjson/ffjson"
 )
 
-type offerResult struct {
-	Id    string
-	Offer *jstruct.JsonOffer
-	Err   error
-}
-
 func loadOffers(store *Store) ([]*jstruct.JsonOffer, error) {
+	type offerResult struct {
+		Id    string
+		Offer *jstruct.JsonOffer
+		Err   error
+	}
+
 	ids, err := store.List()
 	if err != nil {
 		return nil, err
