@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/analysis/tokenizers/exception"
 	"github.com/blevesearch/bleve/analysis/tokenizers/unicode"
+	"github.com/pmezard/apec/jstruct"
 )
 
 var (
@@ -249,6 +251,66 @@ func listDeletedFn(cfg *Config) error {
 			fmt.Printf("%s", e.Date)
 		}
 		fmt.Println()
+	}
+	return nil
+}
+
+var (
+	dumpOfferCmd = app.Command("dump-offer",
+		"print active and deleted versions of an offer")
+	dumpOfferId = dumpOfferCmd.Arg("id", "offer identifier").Required().String()
+)
+
+func printJsonOffer(store *Store, id string, deletedId uint64) error {
+	js := &jstruct.JsonOffer{}
+	var data []byte
+	var err error
+	if deletedId == 0 {
+		data, err = store.Get(id)
+	} else {
+		data, err = store.GetDeleted(deletedId)
+	}
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(data, js)
+	if err != nil {
+		return err
+	}
+	s, err := json.MarshalIndent(js, "", " ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Printf("%s\n", s)
+	return err
+}
+
+func dumpOfferFn(cfg *Config) error {
+	store, err := OpenStore(cfg.Store())
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	deletedIds, err := store.ListDeletedOffers(*dumpOfferId)
+	if err != nil {
+		return err
+	}
+	for _, id := range deletedIds {
+		err = printJsonOffer(store, *dumpOfferId, id.Id)
+		if err != nil {
+			return err
+		}
+	}
+	data, err := store.Get(*dumpOfferId)
+	if err != nil {
+		return err
+	}
+	if data != nil {
+		err = printJsonOffer(store, *dumpOfferId, 0)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

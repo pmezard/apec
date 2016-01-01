@@ -86,6 +86,10 @@ func dispatch() error {
 		return indexStatsFn(cfg)
 	case listDeletedCmd.FullCommand():
 		return listDeletedFn(cfg)
+	case duplicatesCmd.FullCommand():
+		return duplicatesFn(cfg)
+	case dumpOfferCmd.FullCommand():
+		return dumpOfferFn(cfg)
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
 }
