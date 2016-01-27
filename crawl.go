@@ -137,6 +137,9 @@ type SearchFilters struct {
 //  - minSalary: the minimum salary for returned offers
 //  - locations: APEC internal location identifiers, can be empty
 func searchOffers(start, count, minSalary int, locations []int) ([]string, error) {
+	if locations == nil {
+		locations = []int{}
+	}
 	filter := &SearchFilters{
 		EnableFilter: true,
 		Functions:    []int{},
@@ -348,7 +351,7 @@ func crawlFn(cfg *Config) error {
 	defer func() {
 		closeErr = store.Close()
 	}()
-	err = crawl(store, *crawlMinSalary, *crawlLocations)
+	err = crawl(store, *crawlMinSalary, nil)
 	if err != nil {
 		return err
 	}
