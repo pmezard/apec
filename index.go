@@ -70,6 +70,9 @@ func loadOffers(store *Store) ([]*jstruct.JsonOffer, error) {
 			fmt.Printf("loading error for %s: %s\n", r.Id, r.Err)
 			continue
 		}
+		if r.Offer == nil {
+			continue
+		}
 		offers = append(offers, r.Offer)
 	}
 	return offers, nil
