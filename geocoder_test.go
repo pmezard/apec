@@ -59,7 +59,8 @@ func TestGeocoderCacheLocation(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	cache, err := OpenCache(tmpDir)
+	path := filepath.Join(tmpDir, "geocoder")
+	cache, err := OpenCache(path)
 	if err != nil {
 		t.Fatalf("could not create cache: %s", err)
 	}
@@ -88,7 +89,7 @@ func TestGeocoderNew(t *testing.T) {
 		t.Fatalf("could not create geocoder cache directory: %s", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	path := filepath.Join(tmpDir, "sub")
+	path := filepath.Join(tmpDir, "geocoder")
 
 	g, err := NewGeocoder("some_key", path)
 	if err != nil {

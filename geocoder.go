@@ -9,9 +9,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 
+	"github.com/boltdb/bolt"
 	"github.com/pmezard/apec/jstruct"
 	"github.com/pquerna/ffjson/ffjson"
 )
@@ -19,8 +19,16 @@ import (
 var (
 	QuotaError = errors.New("payment required")
 
-	geoCacheBucket  = []byte("c")
-	geoPointBucket  = []byte("p")
+	geoCacheBucket = []byte("c")
+	geoPointBucket = []byte("p")
+	geoMetaBucket  = []byte("m")
+
+	geoBuckets = [][]byte{
+		geoCacheBucket,
+		geoPointBucket,
+		geoMetaBucket,
+	}
+
 	geocoderVersion = 2
 )
 
@@ -79,17 +87,29 @@ func buildLocation(loc *jstruct.Location) *Location {
 }
 
 type Cache struct {
-	db *KVDB
+	db *bolt.DB
 }
 
-func OpenCache(dir string) (*Cache, error) {
-	path := filepath.Join(dir, "kv")
+func OpenCache(path string) (*Cache, error) {
 	exists, err := isFile(path)
 	if err != nil {
 		return nil, err
 	}
-	db, err := OpenKVDB(filepath.Join(dir, "kv"), 0)
+	db, err := bolt.Open(path, 0666, nil)
 	if err != nil {
+		return nil, err
+	}
+	err = db.Update(func(tx *bolt.Tx) error {
+		for _, bucket := range geoBuckets {
+			_, err := tx.CreateBucketIfNotExists(bucket)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		db.Close()
 		return nil, err
 	}
 	c := &Cache{
@@ -182,9 +202,9 @@ func readBinaryLocation(r io.Reader) (loc *Location, err error) {
 }
 
 func (c *Cache) Put(key string, data []byte, pos *Location) error {
-	return c.db.Update(func(tx *Tx) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
 		k := []byte(key)
-		err := tx.Put(geoCacheBucket, k, data)
+		err := tx.Bucket(geoCacheBucket).Put(k, data)
 		if err != nil {
 			return err
 		}
@@ -195,16 +215,15 @@ func (c *Cache) Put(key string, data []byte, pos *Location) error {
 				return err
 			}
 		}
-		return tx.Put(geoPointBucket, k, w.Bytes())
+		return tx.Bucket(geoPointBucket).Put(k, w.Bytes())
 	})
 }
 
 func (c *Cache) Get(key string) ([]byte, error) {
-	var err error
 	var data []byte
-	err = c.db.View(func(tx *Tx) error {
-		data, err = tx.Get(geoCacheBucket, []byte(key))
-		return err
+	err := c.db.View(func(tx *bolt.Tx) error {
+		data = tx.Bucket(geoCacheBucket).Get([]byte(key))
+		return nil
 	})
 	return data, err
 }
@@ -212,11 +231,11 @@ func (c *Cache) Get(key string) ([]byte, error) {
 func (c *Cache) GetLocation(key string) (*Location, bool, error) {
 	var p *Location
 	found := false
-	err := c.db.View(func(tx *Tx) error {
-		data, err := tx.Get(geoPointBucket, []byte(key))
+	err := c.db.View(func(tx *bolt.Tx) error {
+		data := tx.Bucket(geoPointBucket).Get([]byte(key))
 		found = data != nil
-		if err != nil || len(data) == 0 {
-			return err
+		if len(data) == 0 {
+			return nil
 		}
 		point, err := readBinaryLocation(bytes.NewBuffer(data))
 		if err != nil {
@@ -230,24 +249,39 @@ func (c *Cache) GetLocation(key string) (*Location, bool, error) {
 
 func (c *Cache) List() ([]string, error) {
 	keys := []string{}
-	var err error
-	err = c.db.View(func(tx *Tx) error {
-		keys, err = tx.List(geoCacheBucket)
-		return err
+	err := c.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(geoCacheBucket)
+		size := bucket.Stats().KeyN
+		keys = make([]string, 0, size)
+		return bucket.ForEach(func(k, v []byte) error {
+			keys = append(keys, string(k))
+			return nil
+		})
 	})
 	return keys, err
 }
 
 func (c *Cache) Version() (int, error) {
-	return getKVDBVersion(c.db, geoCacheBucket)
+	version := 0
+	err := c.db.View(func(tx *bolt.Tx) error {
+		data := tx.Bucket(geoMetaBucket).Get([]byte("version"))
+		if data != nil {
+			v, n := binary.Varint(data)
+			if n > 0 {
+				version = int(v)
+			}
+		}
+		return nil
+	})
+	return version, err
 }
 
 func (c *Cache) SetVersion(version int) error {
-	return setKVDBVersion(c.db, geoCacheBucket, version)
-}
-
-func (c *Cache) FixEmptyValues() (int, error) {
-	return c.db.FixEmptyValues(geoPointBucket)
+	return c.db.Update(func(tx *bolt.Tx) error {
+		buf := make([]byte, 10)
+		n := binary.PutVarint(buf, int64(version))
+		return tx.Bucket(geoMetaBucket).Put([]byte("version"), buf[:n])
+	})
 }
 
 type Geocoder struct {
@@ -256,6 +290,32 @@ type Geocoder struct {
 }
 
 func NewGeocoder(key, cacheDir string) (*Geocoder, error) {
+	cache, err := OpenCache(cacheDir)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if cache != nil {
+			cache.Close()
+		}
+	}()
+	version, err := cache.Version()
+	if err != nil {
+		return nil, err
+	}
+	if version != geocoderVersion {
+		return nil, fmt.Errorf("please upgrade geocoder cache from %d to %d",
+			version, geocoderVersion)
+	}
+	g := &Geocoder{
+		key:   key,
+		cache: cache,
+	}
+	cache = nil
+	return g, nil
+}
+
+func NewOldGeocoder(key, cacheDir string) (*Geocoder, error) {
 	cache, err := OpenCache(cacheDir)
 	if err != nil {
 		return nil, err
