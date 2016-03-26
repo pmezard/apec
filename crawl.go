@@ -351,7 +351,7 @@ func crawlFn(cfg *Config) error {
 	defer func() {
 		closeErr = store.Close()
 	}()
-	err = crawl(store, *crawlMinSalary, nil)
+	err = crawl(store, *crawlMinSalary, *crawlLocations)
 	if err != nil {
 		return err
 	}
