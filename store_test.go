@@ -8,12 +8,6 @@ import (
 	"time"
 )
 
-func assertErr(t *testing.T, err error) {
-	if err != nil {
-		t.Fatalf("%s", err)
-	}
-}
-
 func openTempStore(t *testing.T) *Store {
 	dir, err := ioutil.TempDir("", "apec-")
 	if err != nil {

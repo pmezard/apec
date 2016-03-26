@@ -13,7 +13,6 @@ import (
 
 var (
 	reSalaryNum   = regexp.MustCompile(`(\d+(?:\.\d+)?)`)
-	reSalaryUndef = regexp.MustCompile(`^(?:.*(definir|negoc|profil|experience|a voir|determiner|attract|precise|selon|competitif).*|nc|-)$`)
 	reSalarySep   = regexp.MustCompile(`\d\s+0\s+\d`)
 	reSalarySplit = regexp.MustCompile(`(?:^|\D)(\d+)\s+(\d{3})(?:\D|$)`)
 )

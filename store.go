@@ -108,23 +108,6 @@ func (s *Store) putJson(tx *Tx, prefix []byte, key []byte, input interface{}) er
 	return tx.Put(prefix, key, data)
 }
 
-type kvStoreMeta struct {
-	Version int `json:"version"`
-}
-
-func (s *Store) getVersion(tx *Tx) (int, error) {
-	meta := &kvStoreMeta{}
-	_, err := s.getJson(tx, kvMetaBucket, []byte("version"), meta)
-	return meta.Version, err
-}
-
-func (s *Store) setVersion(tx *Tx, version int) error {
-	meta := &kvStoreMeta{
-		Version: version,
-	}
-	return s.putJson(tx, kvMetaBucket, []byte("version"), meta)
-}
-
 func (s *Store) Put(id string, data []byte) error {
 	return s.db.Update(func(tx *Tx) error {
 		k := []byte(id)
