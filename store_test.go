@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"io/ioutil"
-	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -13,17 +13,16 @@ func openTempStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatalf("could not create store temporary directory: %s", err)
 	}
-	store, err := OpenStore(dir)
+	path := filepath.Join(dir, "store")
+	store, err := OpenStore(path)
 	if err != nil {
-		os.RemoveAll(dir)
-		t.Fatalf("could not open store on %s: %s", dir, err)
+		t.Fatalf("could not open store on %s: %s", path, err)
 	}
 	return store
 }
 
 func closeAndDeleteStore(t *testing.T, store *Store) {
 	err := store.Close()
-	os.RemoveAll(store.Path())
 	if err != nil {
 		t.Fatalf("could not close store on %s: %s", store.Path(), err)
 	}

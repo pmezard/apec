@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
-	"path/filepath"
+	"time"
 )
 
 var (
@@ -90,58 +90,112 @@ func populateStoreLocations(geocoderDir, storeDir string) error {
 	return store.Close()
 }
 
-func fixStoreEmptyValues(storeDir string) error {
-	store, err := UpgradeStore(storeDir)
+func removeMissing(oldDir, newPath string) error {
+	oldStore, err := OpenOldStore(oldDir)
 	if err != nil {
 		return err
 	}
-	defer store.Close()
+	defer oldStore.Close()
+	newStore, err := OpenStore(newPath)
+	if err != nil {
+		return err
+	}
+	defer newStore.Close()
 
-	version, err := store.Version()
-	if err != nil || version >= 3 {
-		return err
-	}
-	log.Printf("migrating store from %d to %d", version, 3)
-	fixed, err := store.FixEmptyValues()
+	newIds, err := newStore.List()
 	if err != nil {
 		return err
 	}
-	err = store.SetVersion(3)
+	oldIds, err := oldStore.List()
 	if err != nil {
 		return err
 	}
-	log.Printf("%d store empty values fixed\n", fixed)
-	return store.Close()
-}
+	oldMap := map[string]bool{}
+	for _, id := range oldIds {
+		oldMap[id] = true
+	}
+	oldIds = nil
 
-func fixStoreSize(path string) error {
-	db, err := OpenKVDB(path, 0)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	err = db.Update(func(tx *Tx) error {
-		return tx.UpdateSize()
-	})
-	if err != nil {
-		return err
-	}
-	return db.Close()
-}
-
-func fixStoreSizes(cfg *Config) error {
-	paths := []string{
-		cfg.Geocoder(),
-		cfg.Store(),
-	}
-	for _, path := range paths {
-		log.Printf("upgrade size of %s", path)
-		err := fixStoreSize(filepath.Join(path, "kv"))
+	n := 0
+	now := time.Now()
+	for _, id := range newIds {
+		n += 1
+		if (n % 1000) == 0 {
+			fmt.Printf("%d new offers deleted\n", n)
+		}
+		if _, ok := oldMap[id]; ok {
+			continue
+		}
+		err := newStore.Delete(id, now)
 		if err != nil {
 			return err
 		}
 	}
-	return nil
+	return newStore.Close()
+}
+
+func migrateStore(oldDir, newPath string) error {
+	oldStore, err := OpenOldStore(oldDir)
+	if err != nil {
+		return err
+	}
+	defer oldStore.Close()
+	newStore, err := OpenStore(newPath)
+	if err != nil {
+		return err
+	}
+	defer newStore.Close()
+
+	deletedIds, err := oldStore.ListDeletedIds()
+	if err != nil {
+		return err
+	}
+	n := 0
+	for _, deletedId := range deletedIds {
+		n += 1
+		if (n % 1000) == 0 {
+			fmt.Printf("%d deleted offers migrated\n", n)
+		}
+		deletedOffers, err := oldStore.ListDeletedOffers(deletedId)
+		if err != nil {
+			return err
+		}
+		for _, deleted := range deletedOffers {
+			offer, err := oldStore.GetDeleted(deleted.Id)
+			if err != nil {
+				return err
+			}
+			err = newStore.Put(deletedId, offer)
+			if err != nil {
+				return err
+			}
+			date, err := time.Parse(time.RFC3339, deleted.Date)
+			err = newStore.Delete(deletedId, date)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	ids, err := oldStore.List()
+	if err != nil {
+		return err
+	}
+	n = 0
+	for _, id := range ids {
+		n += 1
+		if (n % 1000) == 0 {
+			fmt.Printf("%d offers migrated\n", n)
+		}
+		offer, err := oldStore.Get(id)
+		if err != nil {
+			return err
+		}
+		err = newStore.Put(id, offer)
+		if err != nil {
+			return err
+		}
+	}
+	return newStore.Close()
 }
 
 func upgrade(cfg *Config) error {
@@ -153,13 +207,16 @@ func upgrade(cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("could not upgrade store: %s", err)
 	}
-	err = fixStoreEmptyValues(cfg.Store())
-	if err != nil {
-		return err
-	}
-	err = fixStoreSizes(cfg)
-	if err != nil {
-		return err
-	}
+	/*
+		err := migrateStore("offers-orig-old/offers", "newstore")
+		if err != nil {
+			return err
+		}
+		err = removeMissing("offers/offers", "newstore")
+		if err != nil {
+			return err
+		}
+		err = migrateStore("offers/offers", "newstore")
+	*/
 	return err
 }
