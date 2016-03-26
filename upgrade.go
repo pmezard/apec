@@ -3,10 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
-
-	"github.com/pmezard/apec/jstruct"
-	"github.com/pquerna/ffjson/ffjson"
 )
 
 var (
@@ -88,6 +84,7 @@ func populateStoreLocations(geocoderDir, storeDir string) error {
 	return store.Close()
 }
 
+/*
 func migrateGeocoder(oldDir, newPath string) error {
 	oldCache, err := OpenOldCache(oldDir)
 	if err != nil {
@@ -121,7 +118,9 @@ func migrateGeocoder(oldDir, newPath string) error {
 	}
 	return newCache.Close()
 }
+*/
 
+/*
 func removeMissing(oldDir, newPath string) error {
 	oldStore, err := OpenOldStore(oldDir)
 	if err != nil {
@@ -229,29 +228,29 @@ func migrateStore(oldDir, newPath string) error {
 	}
 	return newStore.Close()
 }
+*/
 
 func upgrade(cfg *Config) error {
 	/*
-		err := upgradeGeocoderCache(cfg.Geocoder())
-		if err != nil {
-			return fmt.Errorf("could not upgrade geocoder: %s", err)
-		}
+				err := upgradeGeocoderCache(cfg.Geocoder())
+				if err != nil {
+					return fmt.Errorf("could not upgrade geocoder: %s", err)
+				}
+			err := migrateGeocoder(cfg.Geocoder(), "newgeocoder")
+				err = populateStoreLocations(cfg.Geocoder(), cfg.Store())
+				if err != nil {
+					return fmt.Errorf("could not upgrade store: %s", err)
+				}
+					err := migrateStore("offers-orig-old/offers", "newstore")
+					if err != nil {
+						return err
+					}
+					err = removeMissing("offers/offers", "newstore")
+					if err != nil {
+						return err
+					}
+					err = migrateStore("offers/offers", "newstore")
+		return err
 	*/
-	err := migrateGeocoder(cfg.Geocoder(), "newgeocoder")
-	/*
-		err = populateStoreLocations(cfg.Geocoder(), cfg.Store())
-		if err != nil {
-			return fmt.Errorf("could not upgrade store: %s", err)
-		}
-			err := migrateStore("offers-orig-old/offers", "newstore")
-			if err != nil {
-				return err
-			}
-			err = removeMissing("offers/offers", "newstore")
-			if err != nil {
-				return err
-			}
-			err = migrateStore("offers/offers", "newstore")
-	*/
-	return err
+	return nil
 }

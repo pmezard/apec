@@ -74,8 +74,6 @@ func dispatch() error {
 		return debugQueryFn(cfg)
 	case analyzeCmd.FullCommand():
 		return analyzeFn(cfg)
-	case kvdbPrefixesCmd.FullCommand():
-		return kvdbPrefixesFn(cfg)
 	case geocodedCmd.FullCommand():
 		return geocodedFn(cfg)
 	case densityCmd.FullCommand():

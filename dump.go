@@ -159,30 +159,6 @@ func analyzeFn(cfg *Config) error {
 }
 
 var (
-	kvdbPrefixesCmd = app.Command("debugkvdbprefixes", "print kvdb store prefixes")
-	kvdbPrefixesArg = kvdbPrefixesCmd.Arg("path", "path to store").Required().String()
-)
-
-func kvdbPrefixesFn(cfg *Config) error {
-	db, err := OpenKVDB(*kvdbPrefixesArg, 0)
-	if err != nil {
-		return err
-	}
-	var prefixes [][]byte
-	err = db.View(func(tx *Tx) error {
-		prefixes, err = tx.ListPrefixes()
-		return err
-	})
-	if err != nil {
-		return err
-	}
-	for _, p := range prefixes {
-		fmt.Println(string(p))
-	}
-	return nil
-}
-
-var (
 	geocodedCmd = app.Command("geocoded", "print geocoded locations")
 	geocodedIds = geocodedCmd.Flag("ids", "display offer identifiers").
 			Default("true").Bool()

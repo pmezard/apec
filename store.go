@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -31,6 +32,17 @@ var (
 
 	storeVersion = 3
 )
+
+func isFile(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return false, err
+		}
+		return false, nil
+	}
+	return true, nil
+}
 
 func UpgradeStore(path string) (*Store, error) {
 	exists, err := isFile(path)
