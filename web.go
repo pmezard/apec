@@ -47,6 +47,7 @@ type offerData struct {
 	Salary   string
 	URL      string
 	Location string
+	Age      string
 }
 
 type datedOffer struct {
@@ -96,6 +97,14 @@ func formatOffers(templ *Templates, store *Store, datedOffers []datedOffer,
 				salary = fmt.Sprintf("(%d kEUR)", offer.MinSalary)
 			}
 		}
+		age := "    "
+		initialDate, err := store.GetInitialDate(doc.Id)
+		if err != nil {
+			return err
+		}
+		if !initialDate.IsZero() {
+			age = fmt.Sprintf("%3dj", start.Sub(initialDate)/(24*time.Hour))
+		}
 		offers = append(offers, &offerData{
 			Account:  offer.Account,
 			Title:    offer.Title,
@@ -103,6 +112,7 @@ func formatOffers(templ *Templates, store *Store, datedOffers []datedOffer,
 			URL:      offer.URL,
 			Salary:   salary,
 			Location: offer.Location,
+			Age:      age,
 		})
 	}
 	end := time.Now()

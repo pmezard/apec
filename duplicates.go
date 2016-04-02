@@ -1,17 +1,11 @@
 package main
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
-	"sort"
+	"time"
 
 	"github.com/pmezard/apec/jstruct"
 	"github.com/pquerna/ffjson/ffjson"
-)
-
-var (
-	duplicatesCmd = app.Command("duplicates", "compute statistics on duplicate offers")
 )
 
 func enumerateStoredOffers(store *Store,
@@ -53,6 +47,18 @@ func enumerateStoredOffers(store *Store,
 		if err != nil {
 			return err
 		}
+		if offer == nil {
+			fmt.Printf("skipping %s\n", id)
+			data, err := store.Get(id)
+			if err != nil {
+				fmt.Printf("error %s: %s\n", id, err)
+			} else if len(data) == 0 {
+				fmt.Printf("error %s: nil\n", id)
+			} else {
+				fmt.Printf("error %s: %s\n", id, string(data))
+			}
+			continue
+		}
 		err = callback(offer, nil)
 		if err != nil {
 			return err
@@ -61,32 +67,24 @@ func enumerateStoredOffers(store *Store,
 	return nil
 }
 
-func hashOffer(js *jstruct.JsonOffer) string {
-	data := []byte(js.Title + js.HTML + js.Location + js.Account + js.Salary)
-	h := md5.Sum(data)
-	return hex.EncodeToString(h[:])
-}
+type sortedOfferAges [][]OfferAge
 
-type Collision struct {
-	Id          string
-	DeletedId   uint64
-	Date        string
-	DeletedDate string
-}
-
-type sortedCollisions [][]Collision
-
-func (s sortedCollisions) Len() int {
+func (s sortedOfferAges) Len() int {
 	return len(s)
 }
 
-func (s sortedCollisions) Swap(i, j int) {
+func (s sortedOfferAges) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-func (s sortedCollisions) Less(i, j int) bool {
+func (s sortedOfferAges) Less(i, j int) bool {
 	return len(s[i]) < len(s[j])
 }
+
+var (
+	duplicatesCmd     = app.Command("duplicates", "compute statistics on duplicate offers")
+	duplicatesReindex = duplicatesCmd.Flag("reindex", "reindex initial dates").Bool()
+)
 
 func duplicatesFn(cfg *Config) error {
 	store, err := OpenStore(cfg.Store())
@@ -95,43 +93,96 @@ func duplicatesFn(cfg *Config) error {
 	}
 	defer store.Close()
 
-	collisions := map[string][]Collision{}
-	err = enumerateStoredOffers(store, func(offer *jstruct.JsonOffer,
-		do *DeletedOffer) error {
+	dateLayout := "2006-01-02T15:04:05.000+0000"
+	if *duplicatesReindex {
+		fmt.Println("remove initial")
+		err = store.RemoveInitialDates()
+		if err != nil {
+			return err
+		}
 
-		h := hashOffer(offer)
-		c := Collision{
-			Id:   offer.Id,
-			Date: offer.Date,
+		deletedLayout := "2006-01-02T15:04:05-07:00"
+
+		fmt.Println("enumerating")
+		collisions := map[string][]OfferAge{}
+		indexed := 0
+		err = enumerateStoredOffers(store, func(offer *jstruct.JsonOffer,
+			do *DeletedOffer) error {
+			indexed++
+			if (indexed % 500) == 0 {
+				fmt.Printf("%d dates listed\n", indexed)
+			}
+
+			date, err := time.Parse(dateLayout, offer.Date)
+			if err != nil {
+				return fmt.Errorf("cannot parse offer date: %s", err)
+			}
+			hash := hashOffer(offer)
+			age := OfferAge{
+				Id:              offer.Id,
+				PublicationDate: date,
+			}
+			if do != nil {
+				date, err := time.Parse(deletedLayout, do.Date)
+				if err != nil {
+					return fmt.Errorf("cannot parse deleted offer date: %s", err)
+				}
+				age.DeletedId = do.Id
+				age.DeletionDate = date
+			}
+			collisions[hash] = append(collisions[hash], age)
+			return nil
+		})
+		if err != nil {
+			return err
 		}
-		if do != nil {
-			c.DeletedId = do.Id
-			c.DeletedDate = do.Date
+
+		prevBlock := indexed / 1000
+		for hash, ages := range collisions {
+			err = store.PutOfferDates(hash, ages)
+			if err != nil {
+				return err
+			}
+			indexed -= len(ages)
+			if (indexed / 1000) < prevBlock {
+				fmt.Printf("remaining %d\n", indexed)
+				prevBlock = indexed / 1000
+			}
 		}
-		collisions[h] = append(collisions[h], c)
-		return nil
-	})
+	}
+
+	ids, err := store.List()
 	if err != nil {
 		return err
 	}
-	groups := [][]Collision{}
-	for _, v := range collisions {
-		if len(v) < 2 {
+	for _, id := range ids {
+		o, err := getStoreJsonOffer(store, id)
+		if err != nil {
+			return err
+		}
+		d, err := store.GetInitialDate(id)
+		if err != nil {
+			return err
+		}
+		if d.IsZero() {
+			date := "nil"
+			if o != nil {
+				date = o.Date
+			}
+			data, err := store.Get(id)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("cannot get %s initial date, %s %d\n", id, date, len(data))
 			continue
 		}
-		groups = append(groups, v)
-	}
-	sort.Sort(sortedCollisions(groups))
-
-	for _, v := range groups {
-		for _, e := range v {
-			if e.DeletedId == 0 {
-				fmt.Printf("%s: %s\n", e.Id, e.Date)
-			} else {
-				fmt.Printf("%s: %s %s\n", e.Id, e.Date, e.DeletedDate)
-			}
+		pub, err := time.Parse(dateLayout, o.Date)
+		if err != nil {
+			return err
 		}
-		fmt.Println()
+		delta := pub.Sub(d) / (24 * time.Hour)
+		fmt.Printf("%s: pub=%s, init=%s, delta=%dj\n", id,
+			pub.Format("2006-01-02"), d.Format("2006-01-02"), delta)
 	}
 	return nil
 }

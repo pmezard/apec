@@ -234,7 +234,7 @@ func listDeletedFn(cfg *Config) error {
 var (
 	dumpOfferCmd = app.Command("dump-offer",
 		"print active and deleted versions of an offer")
-	dumpOfferId = dumpOfferCmd.Arg("id", "offer identifier").Required().String()
+	dumpOfferIds = dumpOfferCmd.Arg("id", "offer identifier").Required().Strings()
 )
 
 func printJsonOffer(store *Store, id string, deletedId uint64) error {
@@ -268,24 +268,26 @@ func dumpOfferFn(cfg *Config) error {
 	}
 	defer store.Close()
 
-	deletedIds, err := store.ListDeletedOffers(*dumpOfferId)
-	if err != nil {
-		return err
-	}
-	for _, id := range deletedIds {
-		err = printJsonOffer(store, *dumpOfferId, id.Id)
+	for _, dumpOfferId := range *dumpOfferIds {
+		deletedIds, err := store.ListDeletedOffers(dumpOfferId)
 		if err != nil {
 			return err
 		}
-	}
-	data, err := store.Get(*dumpOfferId)
-	if err != nil {
-		return err
-	}
-	if data != nil {
-		err = printJsonOffer(store, *dumpOfferId, 0)
+		for _, id := range deletedIds {
+			err = printJsonOffer(store, dumpOfferId, id.Id)
+			if err != nil {
+				return err
+			}
+		}
+		data, err := store.Get(dumpOfferId)
 		if err != nil {
 			return err
+		}
+		if data != nil {
+			err = printJsonOffer(store, dumpOfferId, 0)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

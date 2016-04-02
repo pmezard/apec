@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/pmezard/apec/jstruct"
 )
 
 type Store struct {
@@ -16,11 +20,13 @@ type Store struct {
 }
 
 var (
-	metaBucket        = []byte("meta")
-	offersBucket      = []byte("offers")
-	deletedBucket     = []byte("deleted")
-	deletedKeysBucket = []byte("deleted_keys")
-	locationsBucket   = []byte("locations")
+	metaBucket         = []byte("meta")
+	offersBucket       = []byte("offers")
+	deletedBucket      = []byte("deleted")
+	deletedKeysBucket  = []byte("deleted_keys")
+	locationsBucket    = []byte("locations")
+	offerDatesBucket   = []byte("dates")
+	initialDatesBucket = []byte("initialdates")
 
 	buckets = [][]byte{
 		metaBucket,
@@ -28,6 +34,8 @@ var (
 		deletedBucket,
 		deletedKeysBucket,
 		locationsBucket,
+		offerDatesBucket,
+		initialDatesBucket,
 	}
 
 	storeVersion = 3
@@ -364,4 +372,200 @@ func (s *Store) DeleteLocations() error {
 		return tx.DeleteBucket(locationsBucket)
 	})
 	return err
+}
+
+func hashOffer(js *jstruct.JsonOffer) string {
+	data := []byte(js.Title + js.HTML + js.Location + js.Account + js.Salary)
+	h := md5.Sum(data)
+	return hex.EncodeToString(h[:])
+}
+
+type OfferAge struct {
+	Id              string
+	DeletedId       uint64
+	PublicationDate time.Time
+	DeletionDate    time.Time
+	InitialDate     time.Time
+}
+
+type sortedByStartDate []OfferAge
+
+func (s sortedByStartDate) Len() int {
+	return len(s)
+}
+
+func (s sortedByStartDate) Less(i, j int) bool {
+	return s[i].PublicationDate.Before(s[j].PublicationDate)
+}
+
+func (s sortedByStartDate) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func computeInitialDate(ages []OfferAge) []OfferAge {
+	tolerance := 7 * 24 * time.Hour
+	sort.Sort(sortedByStartDate(ages))
+	minStart := time.Time{}
+	updated := []OfferAge{}
+	for i, age := range ages {
+		if !age.DeletionDate.IsZero() && age.DeletionDate.Before(age.PublicationDate) {
+			age.DeletionDate = age.PublicationDate
+		}
+		if minStart.IsZero() {
+			minStart = age.PublicationDate
+		} else if i > 0 {
+			prev := updated[i-1]
+			if !prev.DeletionDate.IsZero() &&
+				prev.DeletionDate.Add(tolerance).Before(age.PublicationDate) {
+				minStart = age.PublicationDate
+			}
+		}
+		age.InitialDate = minStart
+		updated = append(updated, age)
+	}
+	return updated
+}
+
+func (s *Store) getOfferDates(tx *bolt.Tx, hash string) ([]OfferAge, error) {
+	data := tx.Bucket(offerDatesBucket).Get([]byte(hash))
+	if data == nil {
+		return nil, nil
+	}
+	ages := []OfferAge{}
+	err := json.Unmarshal(data, &ages)
+	return ages, err
+}
+
+func (s *Store) putOfferDates(tx *bolt.Tx, hash string, ages []OfferAge) error {
+	data, err := json.Marshal(&ages)
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(offerDatesBucket).Put([]byte(hash), data)
+}
+
+type InitialDate struct {
+	Date time.Time `json:"date"`
+	Hash string    `json:"hash"`
+}
+
+func (s *Store) putInitialDate(tx *bolt.Tx, offerId, hash string, date time.Time) error {
+	data, err := json.Marshal(&InitialDate{
+		Date: date,
+		Hash: hash,
+	})
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(initialDatesBucket).Put([]byte(offerId), data)
+}
+
+func (s *Store) GetInitialDate(offerId string) (time.Time, error) {
+	date := time.Time{}
+	err := s.db.View(func(tx *bolt.Tx) error {
+		data := tx.Bucket(initialDatesBucket).Get([]byte(offerId))
+		if data == nil {
+			return nil
+		}
+		d := &InitialDate{}
+		err := json.Unmarshal(data, d)
+		if err != nil {
+			return fmt.Errorf("could not decode initial date: %s", err)
+		}
+		date = d.Date
+		return nil
+	})
+	return date, err
+}
+
+func (s *Store) PutOfferDate(hash string, age OfferAge) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		ages, err := s.getOfferDates(tx, hash)
+		if err != nil {
+			return err
+		}
+		// Collect active offer initial dates before the update
+		before := map[string]time.Time{}
+		for _, a := range ages {
+			if a.DeletedId != 0 {
+				continue
+			}
+			before[a.Id] = a.InitialDate
+		}
+		kept := []OfferAge{}
+		for _, a := range ages {
+			if a.Id == age.Id && a.DeletedId == age.DeletedId {
+				continue
+			}
+			kept = append(kept, a)
+		}
+		ages = append(kept, age)
+		ages = computeInitialDate(ages)
+		err = s.putOfferDates(tx, hash, ages)
+		if err != nil {
+			return err
+		}
+		// Update or delete offers initial dates
+		for _, a := range ages {
+			if a.DeletedId != 0 {
+				continue
+			}
+			d := before[a.Id]
+			if d.IsZero() || !d.Equal(a.InitialDate) {
+				err = s.putInitialDate(tx, a.Id, hash, a.InitialDate)
+				if err != nil {
+					return err
+				}
+			}
+			delete(before, a.Id)
+		}
+		for id := range before {
+			err = tx.Bucket(initialDatesBucket).Delete([]byte(id))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *Store) PutOfferDates(hash string, ages []OfferAge) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		ages = computeInitialDate(ages)
+		err := s.putOfferDates(tx, hash, ages)
+		if err != nil {
+			return err
+		}
+		// Update or delete offers initial dates
+		for _, a := range ages {
+			if a.DeletedId != 0 {
+				continue
+			}
+			err = s.putInitialDate(tx, a.Id, hash, a.InitialDate)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *Store) RemoveInitialDates() error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		buckets := [][]byte{initialDatesBucket, offerDatesBucket}
+		for _, bucket := range buckets {
+			b := tx.Bucket(bucket)
+			if b != nil {
+				err := tx.DeleteBucket(bucket)
+				if err != nil {
+					return err
+				}
+			}
+			_, err := tx.CreateBucket(bucket)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
