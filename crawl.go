@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/pmezard/apec/jstruct"
+	"github.com/pquerna/ffjson/ffjson"
 )
 
 type HTTPError struct {
@@ -226,15 +229,38 @@ func enumerateOffers(minSalary int, locations []int, callback func([]string) err
 	return nil
 }
 
+func putOfferDate(store *Store, data []byte, deletedId uint64) error {
+	js := &jstruct.JsonOffer{}
+	err := ffjson.Unmarshal(data, js)
+	if err != nil {
+		return err
+	}
+	dateLayout := "2006-01-02T15:04:05.000+0000"
+	date, err := time.Parse(dateLayout, js.Date)
+	if err != nil {
+		return fmt.Errorf("cannot parse offer date: %s", err)
+	}
+	age := OfferAge{
+		Id:              js.Id,
+		DeletedId:       deletedId,
+		PublicationDate: date,
+	}
+	if deletedId != 0 {
+		age.DeletionDate = time.Now()
+	}
+	return store.PutOfferDate(hashOffer(js), age)
+}
+
 // crawlOffers fetches specified offers and store their binary representation
 // in the store. It returns the number of offers actually stored. Already
 // fetched offers, or missing remote offers are ignored.
-func crawlOffers(store *Store, ids []string) (int, error) {
+func crawlOffers(store *Store, ids []string) (int, int, error) {
 	added := 0
+	ageErrors := 0
 	for _, id := range ids {
 		ok, err := store.Has(id)
 		if err != nil {
-			return added, err
+			return added, 0, err
 		}
 		if ok {
 			continue
@@ -242,7 +268,7 @@ func crawlOffers(store *Store, ids []string) (int, error) {
 		fmt.Printf("fetching %s\n", id)
 		data, err := getOffer(id)
 		if err != nil {
-			return added, err
+			return added, 0, err
 		}
 		time.Sleep(time.Second)
 		if data == nil {
@@ -251,11 +277,15 @@ func crawlOffers(store *Store, ids []string) (int, error) {
 		}
 		err = store.Put(id, data)
 		if err != nil {
-			return added, err
+			return added, 0, err
 		}
 		added += 1
+		err = putOfferDate(store, data, 0)
+		if err != nil {
+			ageErrors += 1
+		}
 	}
-	return added, nil
+	return added, ageErrors, nil
 }
 
 func crawl(store *Store, minSalary int, locations []int) error {
@@ -292,10 +322,12 @@ func crawl(store *Store, minSalary int, locations []int) error {
 
 	// Crawl offers in another goroutine
 	added := 0
+	ageErrors := 0
 	go func() {
 		for ids := range idsChan {
-			n, err := crawlOffers(store, ids)
+			n, e, err := crawlOffers(store, ids)
 			added += n
+			ageErrors += e
 			if n < len(ids) {
 				fmt.Printf("%d known offers ignored\n", len(ids)-n)
 			}
@@ -326,13 +358,33 @@ func crawl(store *Store, minSalary int, locations []int) error {
 	}
 	now := time.Now()
 	for _, id := range ids {
-		if !seen[id] {
-			fmt.Printf("deleting %s\n", id)
-			store.Delete(id, now)
-			deleted += 1
+		if seen[id] {
+			continue
 		}
+		fmt.Printf("deleting %s\n", id)
+		var offer []byte
+		d, err := store.Get(id)
+		if err == nil {
+			offer = d
+		} else {
+			ageErrors += 1
+		}
+		deletedId, err := store.Delete(id, now)
+		if err != nil {
+			return fmt.Errorf("could not delete %s: %s\n", id, err)
+		}
+		if offer != nil {
+			err = putOfferDate(store, offer, deletedId)
+			if err != nil {
+				ageErrors += 1
+			}
+		}
+		deleted += 1
 	}
 	fmt.Printf("%d added, %d deleted, %d total\n", added, deleted, store.Size())
+	if ageErrors > 0 {
+		return fmt.Errorf("failed to compute %d offer age", ageErrors)
+	}
 	return nil
 }
 

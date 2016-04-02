@@ -189,8 +189,9 @@ type deletedOffers struct {
 	Ids []DeletedOffer `json:"ids"`
 }
 
-func (s *Store) Delete(id string, now time.Time) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+func (s *Store) Delete(id string, now time.Time) (uint64, error) {
+	removedId := uint64(0)
+	err := s.db.Update(func(tx *bolt.Tx) error {
 		key := []byte(id)
 		data := tx.Bucket(offersBucket).Get(key)
 		if data == nil {
@@ -202,6 +203,7 @@ func (s *Store) Delete(id string, now time.Time) error {
 		if err != nil {
 			return err
 		}
+		removedId = deletedId
 		err = tx.Bucket(deletedBucket).Put(uintToBytes(deletedId), data)
 		if err != nil {
 			return err
@@ -228,6 +230,7 @@ func (s *Store) Delete(id string, now time.Time) error {
 		// Delete the live offer
 		return tx.Bucket(offersBucket).Delete(key)
 	})
+	return removedId, err
 }
 
 func (s *Store) ListDeletedIds() ([]string, error) {

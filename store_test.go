@@ -38,7 +38,7 @@ func TestOfferDeletion(t *testing.T) {
 	id := "id1"
 
 	// Delete missing offer
-	err := store.Delete(id, now)
+	_, err := store.Delete(id, now)
 	if err != nil {
 		t.Fatalf("error while deleted missing entry: %s", err)
 	}
@@ -48,7 +48,7 @@ func TestOfferDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not write entry: %s", err)
 	}
-	err = store.Delete(id, now)
+	deletedId, err := store.Delete(id, now)
 	if err != nil {
 		t.Fatalf("could not deleted created entry: %s", err)
 	}
@@ -72,6 +72,9 @@ func TestOfferDeletion(t *testing.T) {
 	}
 	if len(deletedOffers) == 0 {
 		t.Fatalf("deleted data was not recorded")
+	}
+	if deletedOffers[0].Id != deletedId {
+		t.Fatalf("expected deleted id %d, got %d", deletedId, deletedOffers[0])
 	}
 	deletedData, err := store.GetDeleted(deletedOffers[0].Id)
 	if err != nil {
@@ -113,7 +116,7 @@ func TestOfferSize(t *testing.T) {
 		t.Fatalf("store should have 1 element, got %d", size)
 	}
 
-	err = store.Delete(id, now)
+	_, err = store.Delete(id, now)
 	if err != nil {
 		t.Fatalf("could not delete %s: %s", id, err)
 	}
@@ -183,7 +186,7 @@ func TestOfferLocation(t *testing.T) {
 	}
 
 	// Deleting an offer remove its location
-	err = store.Delete(id, now)
+	_, err = store.Delete(id, now)
 	if err != nil {
 		t.Fatal(err)
 	}
