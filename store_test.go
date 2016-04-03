@@ -80,7 +80,7 @@ func TestOfferDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not get deleted data: %s", err)
 	}
-	if bytes.Compare(deletedData, data) != 0 {
+	if !bytes.Equal(deletedData, data) {
 		t.Fatalf("deleted data does not match data: %x != %x", deletedData, data)
 	}
 
