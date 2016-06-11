@@ -11,8 +11,11 @@ type JsonOffer struct {
 	Salary      string `json:"salaireTexte"`
 	PartialTime bool   `json:"tempsPartiel"`
 	Location    string `json:"lieuTexte"`
-	HTML        string `json:"texteHtml"`
-	Account     string `json:"nomCompteEtablissement"`
+	Locations   []struct {
+		Name string `json:"libelleLieu"`
+	} `json:"lieux"`
+	HTML    string `json:"texteHtml"`
+	Account string `json:"nomCompteEtablissement"`
 }
 
 func (offer *JsonOffer) Type() string {

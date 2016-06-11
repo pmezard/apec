@@ -104,6 +104,9 @@ func convertOffer(offer *jstruct.JsonOffer) (*Offer, error) {
 		URL:      ApecURL + offer.Id,
 		Location: offer.Location,
 	}
+	if r.Location == "" && len(offer.Locations) > 0 {
+		r.Location = offer.Locations[0].Name
+	}
 	min, max, err := parseSalary(offer.Salary)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse salary %q: %s", offer.Salary, err)

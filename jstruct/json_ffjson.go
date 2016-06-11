@@ -7,6 +7,7 @@ package jstruct
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	fflib "github.com/pquerna/ffjson/fflib/v1"
@@ -48,6 +49,22 @@ func (mj *JsonOffer) MarshalJSONBuf(buf fflib.EncodingBuffer) error {
 	}
 	buf.WriteString(`,"lieuTexte":`)
 	fflib.WriteJsonString(buf, string(mj.Location))
+	buf.WriteString(`,"lieux":`)
+	if mj.Locations != nil {
+		buf.WriteString(`[`)
+		for i, v := range mj.Locations {
+			if i != 0 {
+				buf.WriteString(`,`)
+			}
+			/* Inline struct. type=struct { Name string "json:\"libelleLieu\"" } kind=struct */
+			buf.WriteString(`{ "libelleLieu":`)
+			fflib.WriteJsonString(buf, string(v.Name))
+			buf.WriteByte('}')
+		}
+		buf.WriteString(`]`)
+	} else {
+		buf.WriteString(`null`)
+	}
 	buf.WriteString(`,"texteHtml":`)
 	fflib.WriteJsonString(buf, string(mj.HTML))
 	buf.WriteString(`,"nomCompteEtablissement":`)
@@ -72,6 +89,8 @@ const (
 
 	ffj_t_JsonOffer_Location
 
+	ffj_t_JsonOffer_Locations
+
 	ffj_t_JsonOffer_HTML
 
 	ffj_t_JsonOffer_Account
@@ -88,6 +107,8 @@ var ffj_key_JsonOffer_Salary = []byte("salaireTexte")
 var ffj_key_JsonOffer_PartialTime = []byte("tempsPartiel")
 
 var ffj_key_JsonOffer_Location = []byte("lieuTexte")
+
+var ffj_key_JsonOffer_Locations = []byte("lieux")
 
 var ffj_key_JsonOffer_HTML = []byte("texteHtml")
 
@@ -174,6 +195,11 @@ mainparse:
 						currentKey = ffj_t_JsonOffer_Location
 						state = fflib.FFParse_want_colon
 						goto mainparse
+
+					} else if bytes.Equal(ffj_key_JsonOffer_Locations, kn) {
+						currentKey = ffj_t_JsonOffer_Locations
+						state = fflib.FFParse_want_colon
+						goto mainparse
 					}
 
 				case 'n':
@@ -220,6 +246,12 @@ mainparse:
 
 				if fflib.SimpleLetterEqualFold(ffj_key_JsonOffer_HTML, kn) {
 					currentKey = ffj_t_JsonOffer_HTML
+					state = fflib.FFParse_want_colon
+					goto mainparse
+				}
+
+				if fflib.SimpleLetterEqualFold(ffj_key_JsonOffer_Locations, kn) {
+					currentKey = ffj_t_JsonOffer_Locations
 					state = fflib.FFParse_want_colon
 					goto mainparse
 				}
@@ -294,6 +326,9 @@ mainparse:
 
 				case ffj_t_JsonOffer_Location:
 					goto handle_Location
+
+				case ffj_t_JsonOffer_Locations:
+					goto handle_Locations
 
 				case ffj_t_JsonOffer_HTML:
 					goto handle_HTML
@@ -474,6 +509,26 @@ handle_Location:
 
 			uj.Location = string(string(outBuf))
 
+		}
+	}
+
+	state = fflib.FFParse_after_value
+	goto mainparse
+
+handle_Locations:
+
+	/* handler: uj.Locations type=[]struct { Name string "json:\"libelleLieu\"" } kind=slice quoted=false*/
+
+	{
+		/* Falling back. type=[]struct { Name string "json:\"libelleLieu\"" } kind=slice */
+		tbuf, err := fs.CaptureField(tok)
+		if err != nil {
+			return fs.WrapErr(err)
+		}
+
+		err = json.Unmarshal(tbuf, &uj.Locations)
+		if err != nil {
+			return fs.WrapErr(err)
 		}
 	}
 
@@ -2009,7 +2064,7 @@ handle_Results:
 
 			for {
 
-				var v LocResult
+				var tmp_uj__Results LocResult
 
 				tok = fs.Scan()
 				if tok == fflib.FFTok_error {
@@ -2030,7 +2085,7 @@ handle_Results:
 					wantVal = true
 				}
 
-				/* handler: v type=jstruct.LocResult kind=struct quoted=false*/
+				/* handler: tmp_uj__Results type=jstruct.LocResult kind=struct quoted=false*/
 
 				{
 					if tok == fflib.FFTok_null {
@@ -2039,14 +2094,14 @@ handle_Results:
 						goto mainparse
 					}
 
-					err = v.UnmarshalJSONFFLexer(fs, fflib.FFParse_want_key)
+					err = tmp_uj__Results.UnmarshalJSONFFLexer(fs, fflib.FFParse_want_key)
 					if err != nil {
 						return err
 					}
 					state = fflib.FFParse_after_value
 				}
 
-				uj.Results = append(uj.Results, v)
+				uj.Results = append(uj.Results, tmp_uj__Results)
 				wantVal = false
 			}
 		}
