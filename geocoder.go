@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
@@ -425,9 +426,18 @@ func (g *Geocoder) rawGeocode(q, countryCode string) (io.ReadCloser, error) {
 	return rsp.Body, nil
 }
 
+func shuffle(values []string) {
+	if len(values) < 2 {
+		return
+	}
+	for i := len(values) - 1; i > 0; i-- {
+		j := rand.Intn(i + 1)
+		values[i], values[j] = values[j], values[i]
+	}
+}
+
 var (
-	geocodeCmd   = app.Command("geocode", "geocode location with OpenCage")
-	geocodeQuery = geocodeCmd.Arg("query", "geocoding query").Required().String()
+	geocodeCmd = app.Command("geocode", "geocode offers without location")
 )
 
 func geocode(cfg *Config) error {
@@ -440,17 +450,51 @@ func geocode(cfg *Config) error {
 		return err
 	}
 	defer geocoder.Close()
-	loc, err := geocoder.Geocode(*geocodeQuery, "fr", false)
+
+	store, err := OpenStore(cfg.Store())
 	if err != nil {
 		return err
 	}
-	if loc.Cached {
-		fmt.Printf("cached: true\n")
+	defer store.Close()
+
+	ids, err := store.List()
+	if err != nil {
+		return err
 	}
-	fmt.Printf("remaining: %d\n", loc.Rate.Remaining)
-	for _, res := range loc.Results {
-		comp := res.Component
-		fmt.Printf("%s\n", comp.String())
+	shuffle(ids)
+	for _, id := range ids {
+		loc, _, err := store.GetLocation(id)
+		if err != nil {
+			return err
+		}
+		if loc != nil {
+			continue
+		}
+		offer, err := getStoreOffer(store, id)
+		if err != nil {
+			return err
+		}
+		if offer == nil {
+			continue
+		}
+		pos, _, off, err := geocodeOffer(geocoder, offer.Location, false, 100)
+		if err != nil {
+			return err
+		}
+		if pos == nil {
+			continue
+		}
+		if off {
+			break
+		}
+		err = store.PutLocation(id, pos, offer.Date)
+		if err != nil {
+			return err
+		}
 	}
-	return nil
+	err = store.Close()
+	if err != nil {
+		return err
+	}
+	return geocoder.Close()
 }

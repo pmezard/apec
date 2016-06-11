@@ -424,7 +424,9 @@ func handleDensityMap(templ *Templates, store *Store, index bleve.Index,
 
 func enforcePost(rq *http.Request, w http.ResponseWriter) bool {
 	if rq.Method != "POST" {
+		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte("method not allowed\n"))
 		return true
 	}
 	return false
@@ -453,7 +455,7 @@ func (h *GeocodingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.Geocode()
-	w.Write([]byte("OK"))
+	w.Write([]byte("OK\n"))
 }
 
 func (h *GeocodingHandler) Geocode() {
@@ -483,14 +485,14 @@ func (h *GeocodingHandler) geocode(minQuota int) error {
 	if err != nil {
 		return err
 	}
-	rejected := 0
-	offline := false
+	log.Printf("geocoding %d offers", len(ids))
+	shuffle(ids)
 	for _, id := range ids {
-		_, date, err := h.store.GetLocation(id)
+		loc, _, err := h.store.GetLocation(id)
 		if err != nil {
 			return err
 		}
-		if !date.IsZero() {
+		if loc != nil {
 			continue
 		}
 		offer, err := getStoreOffer(h.store, id)
@@ -500,23 +502,19 @@ func (h *GeocodingHandler) geocode(minQuota int) error {
 		if offer == nil {
 			continue
 		}
-		pos, live, off, err := geocodeOffer(h.geocoder, offer.Location, offline, 0)
+		pos, _, off, err := geocodeOffer(h.geocoder, offer.Location, false, 0)
 		if err != nil {
 			return err
 		}
-		offline = off
-		if !offline {
-			err = h.store.PutLocation(id, pos, offer.Date)
-			if err != nil {
-				return err
-			}
-		}
 		if pos == nil {
-			rejected++
 			continue
 		}
-		if !live {
-			continue
+		if off {
+			break
+		}
+		err = h.store.PutLocation(id, pos, offer.Date)
+		if err != nil {
+			return err
 		}
 		offerLoc, err := makeOfferLocation(offer.Id, offer.Date, pos)
 		if err != nil {
