@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/alecthomas/kingpin"
-	"github.com/davecheney/profile"
+	"github.com/pkg/profile"
 )
 
 var (
