@@ -10,16 +10,16 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve"
-	"github.com/blevesearch/bleve/analysis/analyzers/custom_analyzer"
-	"github.com/blevesearch/bleve/analysis/char_filters/html_char_filter"
-	"github.com/blevesearch/bleve/analysis/language/fr"
-	"github.com/blevesearch/bleve/analysis/token_filters/lower_case_filter"
-	"github.com/blevesearch/bleve/analysis/token_filters/stop_tokens_filter"
-	"github.com/blevesearch/bleve/analysis/token_map"
-	"github.com/blevesearch/bleve/analysis/tokenizers/exception"
-	bleveuni "github.com/blevesearch/bleve/analysis/tokenizers/unicode"
+	"github.com/blevesearch/bleve/analysis/analyzer/custom"
+	"github.com/blevesearch/bleve/analysis/char/html"
+	"github.com/blevesearch/bleve/analysis/lang/fr"
+	"github.com/blevesearch/bleve/analysis/token/lowercase"
+	"github.com/blevesearch/bleve/analysis/token/stop"
+	"github.com/blevesearch/bleve/analysis/tokenizer/exception"
+	bleveuni "github.com/blevesearch/bleve/analysis/tokenizer/unicode"
+	"github.com/blevesearch/bleve/analysis/tokenmap"
 	"github.com/blevesearch/bleve/index/store/boltdb"
-	"github.com/blevesearch/bleve/index/upside_down"
+	"github.com/blevesearch/bleve/index/upsidedown"
 	"github.com/pmezard/apec/jstruct"
 	"github.com/pquerna/ffjson/ffjson"
 )
@@ -196,7 +196,7 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 
 	apecTokens := "apec_tokens"
 	err = m.AddCustomTokenMap(apecTokens, map[string]interface{}{
-		"type":   token_map.Name,
+		"type":   tokenmap.Name,
 		"tokens": stopWords,
 	})
 	if err != nil {
@@ -205,7 +205,7 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 
 	apecStop := "apec_stop"
 	err = m.AddCustomTokenFilter(apecStop, map[string]interface{}{
-		"type":           stop_tokens_filter.Name,
+		"type":           stop.Name,
 		"stop_token_map": apecTokens,
 	})
 	if err != nil {
@@ -213,21 +213,21 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	}
 
 	frTokens := []string{
-		lower_case_filter.Name,
+		lowercase.Name,
 		fr.ElisionName,
 		fr.StopName,
 		fr.LightStemmerName,
 		apecStop,
 	}
 	fr := map[string]interface{}{
-		"type":          custom_analyzer.Name,
+		"type":          custom.Name,
 		"tokenizer":     apecTokenizer,
 		"token_filters": frTokens,
 	}
 	frHtml := map[string]interface{}{
-		"type": custom_analyzer.Name,
+		"type": custom.Name,
 		"char_filters": []string{
-			html_char_filter.Name,
+			html.Name,
 		},
 		"tokenizer":     apecTokenizer,
 		"token_filters": frTokens,
@@ -273,7 +273,7 @@ func NewOfferIndex(dir string) (bleve.Index, error) {
 	m.AddDocumentMapping("offer", offer)
 	m.DefaultMapping = offer
 
-	index, err := bleve.NewUsing(dir, m, upside_down.Name, boltdb.Name,
+	index, err := bleve.NewUsing(dir, m, upsidedown.Name, boltdb.Name,
 		map[string]interface{}{
 			"nosync": true,
 		})

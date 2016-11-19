@@ -88,7 +88,7 @@ func listIndexIds(index bleve.Index) ([]string, error) {
 		return nil, err
 	}
 	defer reader.Close()
-	idReader, err := reader.DocIDReader("", "")
+	idReader, err := reader.DocIDReaderAll()
 	if err != nil {
 		return nil, err
 	}
@@ -99,10 +99,14 @@ func listIndexIds(index bleve.Index) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		if id == "" {
+		if id == nil {
 			break
 		}
-		ids = append(ids, id)
+		extId, err := reader.ExternalID(id)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, extId)
 	}
 	return ids, nil
 }

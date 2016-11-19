@@ -11,8 +11,9 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve"
-	"github.com/blevesearch/bleve/analysis/tokenizers/exception"
-	"github.com/blevesearch/bleve/analysis/tokenizers/unicode"
+	"github.com/blevesearch/bleve/analysis/tokenizer/exception"
+	"github.com/blevesearch/bleve/analysis/tokenizer/unicode"
+	"github.com/blevesearch/bleve/search/query"
 	"github.com/pmezard/apec/jstruct"
 )
 
@@ -134,7 +135,7 @@ func debugQueryFn(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	s, err := bleve.DumpQuery(index.Mapping(), q)
+	s, err := query.DumpQuery(index.Mapping(), q)
 	fmt.Println(s)
 	return err
 }

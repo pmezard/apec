@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/search/query"
 	"github.com/jonas-p/go-shp"
 	"github.com/pmezard/apec/blevext"
 	"github.com/pmezard/apec/shpdraw"
@@ -141,24 +142,24 @@ func formatOffers(templ *Templates, store *Store, datedOffers []datedOffer,
 	return nil
 }
 
-func makeSearchQuery(query string, ids []string) (bleve.Query, error) {
-	nodes, err := blevext.Parse(query)
+func makeSearchQuery(queryString string, ids []string) (query.Query, error) {
+	nodes, err := blevext.Parse(queryString)
 	if err != nil {
 		return nil, err
 	}
 
-	addIdsFilter := func(q bleve.Query) bleve.Query {
+	addIdsFilter := func(q query.Query) query.Query {
 		if len(ids) == 0 {
 			return q
 		}
-		return bleve.NewConjunctionQuery([]bleve.Query{
-			blevext.NewDocIDQuery(ids),
+		return bleve.NewConjunctionQuery(
+			query.NewDocIDQuery(ids),
 			q,
-		})
+		)
 	}
 
-	var makeQuery func(*blevext.Node) (bleve.Query, error)
-	makeQuery = func(n *blevext.Node) (bleve.Query, error) {
+	var makeQuery func(*blevext.Node) (query.Query, error)
+	makeQuery = func(n *blevext.Node) (query.Query, error) {
 		if n == nil {
 			return bleve.NewMatchAllQuery(), nil
 		}
@@ -173,22 +174,30 @@ func makeSearchQuery(query string, ids []string) (bleve.Query, error) {
 				return nil, err
 			}
 			if n.Kind == blevext.NodeOr {
-				return bleve.NewDisjunctionQueryMin([]bleve.Query{left, right}, 1), nil
+				q := query.NewDisjunctionQuery([]query.Query{left, right})
+				q.Min = 1
+				return q, nil
 			}
-			return bleve.NewConjunctionQuery([]bleve.Query{left, right}), nil
+			return query.NewConjunctionQuery([]query.Query{left, right}), nil
 		case blevext.NodeString, blevext.NodePhrase:
-			fn := func(s string) bleve.Query {
+			fn := func(s string) query.FieldableQuery {
 				return bleve.NewMatchQuery(s)
 			}
 			if n.Kind == blevext.NodePhrase {
-				fn = func(s string) bleve.Query {
+				fn = func(s string) query.FieldableQuery {
 					return blevext.NewAllMatchQuery(s)
 				}
 			}
-			return bleve.NewDisjunctionQueryMin([]bleve.Query{
-				addIdsFilter(fn(n.Value).SetField("html")),
-				addIdsFilter(fn(n.Value).SetField("title")),
-			}, 1), nil
+			htmlQuery := fn(n.Value)
+			htmlQuery.SetField("html")
+			titleQuery := fn(n.Value)
+			titleQuery.SetField("title")
+			q := query.NewDisjunctionQuery([]query.Query{
+				addIdsFilter(htmlQuery),
+				addIdsFilter(titleQuery),
+			})
+			q.Min = 1
+			return q, nil
 		}
 		return nil, fmt.Errorf("unknown query node type: %d", n.Kind)
 	}
