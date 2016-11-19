@@ -209,7 +209,7 @@ func getOffer(id string) ([]byte, error) {
 func enumerateOffers(minSalary int, locations []int, callback func([]string) error) error {
 	start := 0
 	overlap := 5
-	count := 250
+	count := 100
 	delay := 5 * time.Second
 	for ; ; time.Sleep(delay) {
 		fmt.Printf("fetching from %d to %d\n", start, start+count)
