@@ -217,6 +217,7 @@ func enumerateOffers(minSalary int, locations []int, callback func([]string) err
 		if err != nil {
 			return err
 		}
+		fmt.Printf("pushing %d ids\n", len(ids))
 		start += (count - overlap)
 		err = callback(ids)
 		if err != nil {
@@ -316,6 +317,9 @@ func crawl(store *Store, minSalary int, locations []int) error {
 			}
 			return nil
 		})
+		if len(pending) > 0 {
+			idsChan <- pending
+		}
 		close(idsChan)
 		listingDone <- err
 	}()
