@@ -88,6 +88,8 @@ func dispatch() error {
 		return duplicatesFn(cfg)
 	case dumpOfferCmd.FullCommand():
 		return dumpOfferFn(cfg)
+	case dumpOffersCmd.FullCommand():
+		return dumpOffersFn(cfg)
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
 }

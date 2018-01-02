@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -292,4 +293,153 @@ func dumpOfferFn(cfg *Config) error {
 		}
 	}
 	return nil
+}
+
+var (
+	dumpOffersCmd    = app.Command("offers", "dump all offers in jsonl")
+	dumpOffersActive = dumpOffersCmd.Flag("active", "dump only active offers").Bool()
+	dumpOffersPrefix = dumpOffersCmd.Flag("prefix", "output name prefix").
+				Default("offers").String()
+)
+
+func addDeletedDate(data []byte, date string) ([]byte, error) {
+	doc := map[string]interface{}{}
+	err := json.Unmarshal(data, &doc)
+	if err != nil {
+		return nil, err
+	}
+	doc["deletionDate"] = date
+	return json.Marshal(&doc)
+}
+
+func enumerateOffersBytes(store *Store, callback func(data []byte) error) error {
+	// Enumerate deleted offers
+	ids, err := store.ListDeletedIds()
+	if err != nil {
+		return err
+	}
+	if !*dumpOffersActive {
+		for _, id := range ids {
+			deletedIds, err := store.ListDeletedOffers(id)
+			if err != nil {
+				return err
+			}
+			for _, deleted := range deletedIds {
+				data, err := store.GetDeleted(deleted.Id)
+				if err != nil {
+					return err
+				}
+				data, err = addDeletedDate(data, deleted.Date)
+				if err != nil {
+					return err
+				}
+				err = callback(data)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	// Enumerate valid offers
+	ids, err = store.List()
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		data, err := store.Get(id)
+		if err != nil {
+			return err
+		}
+		if data != nil {
+			err = callback(data)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+type OfferWriter struct {
+	prefix     string
+	suffix     string
+	fp         *os.File
+	maxPerFile int
+	written    int
+	index      int
+}
+
+func NewOfferWriter(prefix, suffix string) (*OfferWriter, error) {
+	w := &OfferWriter{
+		prefix:     prefix,
+		suffix:     suffix,
+		maxPerFile: 50000,
+	}
+	err := w.rotate()
+	if err != nil {
+		return nil, err
+	}
+	return w, nil
+}
+
+func (w *OfferWriter) rotate() error {
+	w.Close()
+	path := fmt.Sprintf("%s-%03d%s", w.prefix, w.index, w.suffix)
+	fmt.Println("opening", path)
+	fp, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	w.fp = fp
+	w.index += 1
+	w.written = 0
+	return nil
+}
+
+func (w *OfferWriter) Close() error {
+	if w.fp != nil {
+		return w.fp.Close()
+	}
+	return nil
+}
+
+func (w *OfferWriter) WriteBytes(data []byte) error {
+	if bytes.ContainsAny(data, "\n") {
+		return fmt.Errorf("EOL found in json line")
+	}
+	parts := [][]byte{
+		data,
+		[]byte("\n"),
+	}
+	for _, buf := range parts {
+		_, err := w.fp.Write(buf)
+		if err != nil {
+			return err
+		}
+	}
+	w.written += 1
+	if w.written >= w.maxPerFile {
+		err := w.rotate()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func dumpOffersFn(cfg *Config) error {
+	store, err := OpenStore(cfg.Store())
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	w, err := NewOfferWriter(*dumpOffersPrefix, ".jsonl")
+	if err != nil {
+		return err
+	}
+	err = enumerateOffersBytes(store, func(data []byte) error {
+		return w.WriteBytes(data)
+	})
+	return w.Close()
 }
