@@ -74,7 +74,7 @@ func TestOfferDeletion(t *testing.T) {
 		t.Fatalf("deleted data was not recorded")
 	}
 	if deletedOffers[0].Id != deletedId {
-		t.Fatalf("expected deleted id %d, got %d", deletedId, deletedOffers[0])
+		t.Fatalf("expected deleted id %d, got %d", deletedId, deletedOffers[0].Id)
 	}
 	deletedData, err := store.GetDeleted(deletedOffers[0].Id)
 	if err != nil {
